@@ -20,6 +20,7 @@ import kotlin.concurrent.thread
 class BridgeServer(
     private val port: Int = 8899,
     private val router: CommandRouter,
+    private val onClientConnected: ((BridgeServer) -> Unit)? = null,
 ) {
     private val running = AtomicBoolean(false)
     private var serverSocket: ServerSocket? = null
@@ -56,6 +57,8 @@ class BridgeServer(
             val reader = BufferedReader(InputStreamReader(s.getInputStream(), Charsets.UTF_8))
             val w = OutputStreamWriter(s.getOutputStream(), Charsets.UTF_8)
             clientWriter = w
+            // Push the authoritative layout to the freshly connected glasses
+            onClientConnected?.invoke(this)
             while (running.get()) {
                 val line = reader.readLine() ?: break
                 val env = Envelope.decode(line) ?: continue

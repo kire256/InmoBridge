@@ -11,8 +11,8 @@ android {
         applicationId = "com.droidforge.inmobridge.phone"
         minSdk = 26
         targetSdk = 35
-        versionCode = 2
-        versionName = "0.2.0-ai-providers"
+        versionCode = 3
+        versionName = "0.3.0-config-push"
     }
 
     buildTypes {

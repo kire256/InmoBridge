@@ -6,6 +6,7 @@ import android.app.NotificationManager
 import android.app.Service
 import android.content.Intent
 import android.os.IBinder
+import com.droidforge.inmobridge.core.BridgeMessage
 import com.droidforge.inmobridge.core.CardSpec
 
 /**
@@ -35,12 +36,42 @@ class BridgeService : Service() {
         startForeground(NOTIF_ID, notif)
 
         val provider: CommandRouter.AiProvider = AiConfig.load(this).toProvider()
-        server = BridgeServer(PORT, CommandRouter(provider)).also { it.start() }
+        val (dock, apps) = DockConfig.load(this)
+        server = BridgeServer(PORT, CommandRouter(provider)) { _ -> pushLayout() }.also { it.start() }
+        // Keep the authoritative copy in memory so pushes are consistent
+        currentDock = dock
+        currentApps = apps
     }
 
     override fun onDestroy() {
         server?.stop()
         super.onDestroy()
+    }
+
+    private var currentDock: List<com.droidforge.inmobridge.core.DockItem> = DockConfig.DEFAULT_DOCK
+    private var currentApps: List<com.droidforge.inmobridge.core.DockItem> = DockConfig.DEFAULT_APPS
+
+    /** Send the current layout to a connected glasses client. */
+    fun pushLayout() {
+        val target = server ?: return
+        val items = currentDock + currentApps
+        target.send(BridgeMessage.config(items, target.nextId()))
+    }
+
+    /** Called by the config UI after a save. */
+    fun updateLayout(dock: List<com.droidforge.inmobridge.core.DockItem>,
+                     apps: List<com.droidforge.inmobridge.core.DockItem>) {
+        currentDock = dock
+        currentApps = apps
+        pushLayout()
+    }
+
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (intent?.getStringExtra("cmd") == "push_layout") {
+            val (dock, apps) = DockConfig.load(this)
+            updateLayout(dock, apps)
+        }
+        return START_STICKY
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
