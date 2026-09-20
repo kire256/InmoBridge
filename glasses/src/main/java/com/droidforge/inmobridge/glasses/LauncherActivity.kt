@@ -19,6 +19,7 @@ class LauncherActivity : AppCompatActivity() {
     private lateinit var focus: LauncherFocus
 
     private var bridge: BridgeClient? = null
+    private var cardDismiss: Runnable? = null
 
     /** TODO: real service discovery (mDNS / QR-paired IP). Stubbed for v0. */
     private val phoneHost = "192.168.68.51"
@@ -79,7 +80,13 @@ class LauncherActivity : AppCompatActivity() {
             }
             BridgeMessage.TYPE_REPLY -> {
                 CardSpec.fromJson(env.payload)?.let { spec ->
-                    runOnUiThread { view.card = spec }
+                    runOnUiThread {
+                        view.card = spec
+                        cardDismiss?.let { view.removeCallbacks(it) }
+                        val run = Runnable { view.card = null }
+                        cardDismiss = run
+                        view.postDelayed(run, spec.timeoutMs)
+                    }
                 }
             }
         }

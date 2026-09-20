@@ -34,7 +34,7 @@ class BridgeService : Service() {
                 .build()
         startForeground(NOTIF_ID, notif)
 
-        val provider: CommandRouter.AiProvider = StubAiProvider()
+        val provider: CommandRouter.AiProvider = AiConfig.load(this).toProvider()
         server = BridgeServer(PORT, CommandRouter(provider)).also { it.start() }
     }
 
@@ -50,10 +50,4 @@ class BridgeService : Service() {
         const val CHANNEL_ID = "bridge"
         const val NOTIF_ID = 42
     }
-}
-
-/** v0 echo provider — replaced by Gemini/OpenAI/local-LLM implementations. */
-class StubAiProvider : CommandRouter.AiProvider {
-    override fun ask(prompt: String): CardSpec =
-        CardSpec("AI (stub)", listOf("You said: $prompt", "Provider wiring comes next."))
 }
