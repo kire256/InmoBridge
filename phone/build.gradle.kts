@@ -11,8 +11,8 @@ android {
         applicationId = "com.droidforge.inmobridge.phone"
         minSdk = 26
         targetSdk = 35
-        versionCode = 3
-        versionName = "0.3.0-config-push"
+        versionCode = 4
+        versionName = "0.4.0-qr-pairing"
     }
 
     buildTypes {
@@ -36,6 +36,7 @@ android {
 dependencies {
     implementation(project(":core"))
     implementation("androidx.core:core-ktx:1.15.0")
+    implementation("com.google.zxing:core:3.5.3")
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.robolectric:robolectric:4.14.1")
     testImplementation("androidx.test:core:1.6.1")

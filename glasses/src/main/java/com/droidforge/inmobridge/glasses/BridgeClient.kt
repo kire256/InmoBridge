@@ -17,6 +17,8 @@ class BridgeClient(
     private val host: String,
     private val port: Int,
     private val onEnvelope: (Envelope) -> Unit,
+    private val token: String? = null,
+    private val deviceName: String = "glasses",
 ) {
     private val running = AtomicBoolean(false)
     private var socket: Socket? = null
@@ -31,6 +33,13 @@ class BridgeClient(
                     socket = s
                     s.tcpNoDelay = true
                     writer = OutputStreamWriter(s.getOutputStream(), Charsets.UTF_8)
+                    // Authenticate first thing on every (re)connect
+                    val hello = com.droidforge.inmobridge.core.BridgeMessage
+                        .hello("glasses", deviceName, System.nanoTime(), token)
+                    synchronized(writer!!) {
+                        writer!!.write(hello.encode() + "\n")
+                        writer!!.flush()
+                    }
                     val reader = BufferedReader(InputStreamReader(s.getInputStream(), Charsets.UTF_8))
                     while (running.get()) {
                         val line = reader.readLine() ?: break

@@ -37,7 +37,12 @@ class BridgeService : Service() {
 
         val provider: CommandRouter.AiProvider = AiConfig.load(this).toProvider()
         val (dock, apps) = DockConfig.load(this)
-        server = BridgeServer(PORT, CommandRouter(provider)) { _ -> pushLayout() }.also { it.start() }
+        server = BridgeServer(
+            PORT,
+            CommandRouter(provider),
+            onClientConnected = { _ -> pushLayout() },
+            expectedToken = PairingManager.token(this),
+        ).also { it.start() }
         // Keep the authoritative copy in memory so pushes are consistent
         currentDock = dock
         currentApps = apps

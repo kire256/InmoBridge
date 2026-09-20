@@ -21,6 +21,8 @@ class BridgeServer(
     private val port: Int = 8899,
     private val router: CommandRouter,
     private val onClientConnected: ((BridgeServer) -> Unit)? = null,
+    /** Non-null → glasses must present this token in their hello envelope. */
+    private val expectedToken: String? = null,
 ) {
     private val running = AtomicBoolean(false)
     private var serverSocket: ServerSocket? = null
@@ -55,13 +57,27 @@ class BridgeServer(
         try {
             s.tcpNoDelay = true
             val reader = BufferedReader(InputStreamReader(s.getInputStream(), Charsets.UTF_8))
+            var authenticated = expectedToken == null
             val w = OutputStreamWriter(s.getOutputStream(), Charsets.UTF_8)
-            clientWriter = w
-            // Push the authoritative layout to the freshly connected glasses
-            onClientConnected?.invoke(this)
+            if (authenticated) clientWriter = w
             while (running.get()) {
                 val line = reader.readLine() ?: break
                 val env = Envelope.decode(line) ?: continue
+                if (!authenticated) {
+                    if (env.type == BridgeMessage.TYPE_HELLO &&
+                        env.payload.optString("token") == expectedToken
+                    ) {
+                        authenticated = true
+                        clientWriter = w
+                        onClientConnected?.invoke(this)  // pushes config etc.
+                    } else {
+                        runCatching {
+                            synchronized(w) { w.write(BridgeMessage.reject("bad token", env.id).encode() + "\n"); w.flush() }
+                        }
+                        break
+                    }
+                    continue
+                }
                 when (env.type) {
                     BridgeMessage.TYPE_INTENT -> router.handle(env) { reply -> send(reply) }
                     else -> Unit

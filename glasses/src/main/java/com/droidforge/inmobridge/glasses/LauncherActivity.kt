@@ -21,9 +21,11 @@ class LauncherActivity : AppCompatActivity() {
     private var bridge: BridgeClient? = null
     private var cardDismiss: Runnable? = null
 
-    /** TODO: real service discovery (mDNS / QR-paired IP). Stubbed for v0. */
-    private val phoneHost = "192.168.68.51"
-    private val phonePort = 8899
+    // Paired via PairingActivity (QR scan / manual). Falls back to the old
+    // hardcode only when nothing is paired yet.
+    private val pairing = PairingStore.load(this)
+    private val phoneHost = pairing?.host ?: "192.168.68.51"
+    private val phonePort = pairing?.port ?: 8899
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -55,7 +57,8 @@ class LauncherActivity : AppCompatActivity() {
         focus = LauncherFocus(dock.size, apps.size) { st -> view.focusState = st }
         view.focusState = focus.state
 
-        bridge = BridgeClient(phoneHost, phonePort, ::onEnvelope)
+        bridge = BridgeClient(phoneHost, phonePort, ::onEnvelope,
+            token = pairing?.token, deviceName = android.os.Build.MODEL ?: "glasses")
         bridge?.start()
     }
 

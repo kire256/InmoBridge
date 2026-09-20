@@ -113,6 +113,64 @@ class MainActivity : Activity() {
             }
         })
 
+        root.addView(Button(this).apply {
+            text = "Pair glasses (show QR)"
+            setOnClickListener { startActivity(Intent(this@MainActivity, PairingActivity::class.java)) }
+        })
+
+        // ---- Glasses layout editor ----
+        root.addView(label("Glasses layout").apply { textSize = 20f })
+        root.addView(label("Dock = bottom bar · Apps = container list."))
+
+        val (dock0, apps0) = DockConfig.load(this)
+        val dock = dock0.toMutableList()
+        val apps = apps0.toMutableList()
+        val listText = TextView(this)
+        fun renderLists() {
+            listText.text = buildString {
+                append("Dock:  ").append(dock.joinToString("  ") { it.icon })
+                append("\nApps:  ").append(apps.joinToString("  ") { it.icon })
+            }
+        }
+        renderLists()
+        root.addView(listText)
+
+        val moveRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        moveRow.addView(Button(this).apply {
+            text = "← to dock"
+            setOnClickListener {
+                if (apps.isNotEmpty()) { dock.add(apps.removeAt(0)); renderLists() }
+            }
+        })
+        moveRow.addView(Button(this).apply {
+            text = "dock → apps"
+            setOnClickListener {
+                if (dock.isNotEmpty()) { apps.add(0, dock.removeAt(dock.lastIndex)); renderLists() }
+            }
+        })
+        moveRow.addView(Button(this).apply {
+            text = "reset"
+            setOnClickListener {
+                dock.clear(); apps.clear()
+                dock.addAll(DockConfig.DEFAULT_DOCK)
+                apps.addAll(DockConfig.DEFAULT_APPS)
+                renderLists()
+            }
+        })
+        root.addView(moveRow)
+
+        root.addView(Button(this).apply {
+            text = "Push layout to glasses"
+            setOnClickListener {
+                DockConfig.save(this@MainActivity, dock, apps)
+                startService(
+                    Intent(this@MainActivity, BridgeService::class.java)
+                        .putExtra("cmd", "push_layout")
+                )
+                Toast.makeText(this@MainActivity, "Layout saved + pushed", Toast.LENGTH_SHORT).show()
+            }
+        })
+
         setContentView(ScrollView(this).apply { addView(root) })
 
         startForegroundService(Intent(this, BridgeService::class.java))

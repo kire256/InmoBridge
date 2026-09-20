@@ -48,15 +48,22 @@ data class Envelope(
 /** Factory + helpers for the well-known message types. */
 object BridgeMessage {
     const val TYPE_HELLO = "hello"
+    const val TYPE_REJECT = "reject"
     const val TYPE_CONFIG = "config"
     const val TYPE_INTENT = "intent"
     const val TYPE_REPLY = "reply"
     const val TYPE_EVENT = "event"
 
-    fun hello(side: String, deviceName: String, id: Long): Envelope = Envelope(
-        id, TYPE_HELLO,
-        JSONObject().put("side", side).put("device", deviceName)
-    )
+    fun hello(side: String, deviceName: String, id: Long, token: String? = null): Envelope =
+        Envelope(
+            id, TYPE_HELLO,
+            JSONObject().put("side", side).put("device", deviceName).apply {
+                if (token != null) put("token", token)
+            }
+        )
+
+    fun reject(reason: String, id: Long): Envelope =
+        Envelope(id, TYPE_REJECT, JSONObject().put("reason", reason))
 
     fun config(items: List<DockItem>, id: Long): Envelope = Envelope(
         id, TYPE_CONFIG,
@@ -136,4 +143,35 @@ data class CardSpec(
             )
         }.getOrNull()
     }
+}
+
+
+/**
+ * QR pairing payload shown by the phone and scanned by the glasses.
+ * Format: compact JSON with v, host, port, token. Kept deliberately small
+ * for low-density QR (glasses cameras read dense codes poorly).
+ */
+object QrPayload {
+    const val VERSION = 1
+
+    data class Parsed(val host: String, val port: Int, val token: String, val name: String?)
+
+    fun encode(host: String, port: Int, token: String, name: String? = null): String =
+        JSONObject()
+            .put("v", VERSION)
+            .put("h", host)
+            .put("p", port)
+            .put("t", token)
+            .apply { if (name != null) put("n", name) }
+            .toString()
+
+    fun decode(s: String): Parsed? = runCatching {
+        val o = JSONObject(s)
+        if (o.optInt("v") != VERSION) return null
+        val host = o.optString("h")
+        val port = o.optInt("p")
+        val token = o.optString("t")
+        if (host.isEmpty() || port <= 0 || token.isEmpty()) return null
+        Parsed(host, port, token, o.optString("n").takeIf { it.isNotEmpty() })
+    }.getOrNull()
 }
