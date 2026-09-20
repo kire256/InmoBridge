@@ -8,6 +8,7 @@ import com.droidforge.inmobridge.core.BridgeMessage
 import com.droidforge.inmobridge.core.CardSpec
 import com.droidforge.inmobridge.core.DockItem
 import com.droidforge.inmobridge.core.Envelope
+import com.droidforge.inmobridge.glasses.BuildConfig
 
 /**
  * Glasses-side launcher. Transparent, fullscreen, keeps the screen on, owns the
@@ -21,14 +22,15 @@ class LauncherActivity : AppCompatActivity() {
     private var bridge: BridgeClient? = null
     private var cardDismiss: Runnable? = null
 
-    // Paired via PairingActivity (QR scan / manual). Falls back to the old
-    // hardcode only when nothing is paired yet.
-    private val pairing = PairingStore.load(this)
-    private val phoneHost = pairing?.host ?: "192.168.68.51"
-    private val phonePort = pairing?.port ?: 8899
+    // Paired via PairingActivity (QR scan / manual). Loaded in onCreate so the
+    // context is attached. Falls back to the old hardcode only when nothing is
+    // paired yet.
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        val pairing = PairingStore.load(this)
+        val phoneHost = pairing?.host ?: "192.168.68.51"
+        val phonePort = pairing?.port ?: 8899
         window.setFlags(
             WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON,
             WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON,

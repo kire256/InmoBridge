@@ -23,6 +23,7 @@ class BridgeClient(
     private val running = AtomicBoolean(false)
     private var socket: Socket? = null
     private var writer: OutputStreamWriter? = null
+    private var connectAttempts = 0
 
     fun start() {
         if (!running.compareAndSet(false, true)) return
@@ -52,7 +53,10 @@ class BridgeClient(
                     socket = null
                     writer = null
                 }
-                if (running.get()) Thread.sleep(RECONNECT_DELAY_MS)
+                if (running.get()) {
+                    connectAttempts = (connectAttempts + 1).coerceAtMost(8)
+                    Thread.sleep(1000L * (1L shl connectAttempts).coerceAtMost(16))
+                }
             }
         }
     }
@@ -72,9 +76,5 @@ class BridgeClient(
                 }
             }
         }
-    }
-
-    companion object {
-        private const val RECONNECT_DELAY_MS = 2000L
     }
 }

@@ -3,6 +3,8 @@ package com.droidforge.inmobridge.glasses
 import androidx.appcompat.app.AppCompatActivity
 import android.content.Context
 import android.os.Bundle
+import android.content.pm.PackageManager
+import android.content.Intent
 import android.view.ViewGroup
 import android.widget.Button
 import android.widget.EditText
@@ -10,6 +12,7 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
 import com.droidforge.inmobridge.core.QrPayload
+import com.droidforge.inmobridge.glasses.BuildConfig
 import com.journeyapps.barcodescanner.ScanContract
 import com.journeyapps.barcodescanner.ScanOptions
 
@@ -35,7 +38,7 @@ class PairingActivity : AppCompatActivity() {
 
         val status = TextView(this).apply {
             val saved = PairingStore.load(this@PairingActivity)
-            text = if (saved != null) "Paired: ${saved.host}:${saved.port}" else "Not paired"
+            text = if (saved != null) "Paired: ${saved.host}:${saved.port}" else "v${BuildConfig.VERSION_NAME} · Not paired"
         }
         root.addView(status)
 
@@ -64,7 +67,7 @@ class PairingActivity : AppCompatActivity() {
                     Toast.makeText(this@PairingActivity, "Invalid payload", Toast.LENGTH_SHORT).show()
                 } else {
                     PairingStore.save(this@PairingActivity, p)
-                    status.text = "Paired: ${p.host}:${p.port}"
+                    status.text = "Paired: ${p.host}:${p.port} · v${BuildConfig.VERSION_NAME}"
                     Toast.makeText(this@PairingActivity, "Saved", Toast.LENGTH_SHORT).show()
                     setResult(RESULT_OK)
                 }
@@ -81,7 +84,8 @@ class PairingActivity : AppCompatActivity() {
                 if (p != null) {
                     PairingStore.save(this, p)
                     Toast.makeText(this, "Paired with ${p.name ?: p.host}", Toast.LENGTH_SHORT).show()
-                    setResult(RESULT_OK)
+                    // Restart launcher so it picks up the new pairing immediately
+                    startActivity(Intent(this, LauncherActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
                     finish()
                 } else {
                     Toast.makeText(this, "Not a bridge QR code", Toast.LENGTH_SHORT).show()

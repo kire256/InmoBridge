@@ -7,6 +7,10 @@ android {
     namespace = "com.droidforge.inmobridge.phone"
     compileSdk = 35
 
+    buildFeatures {
+        buildConfig = true
+    }
+
     defaultConfig {
         applicationId = "com.droidforge.inmobridge.phone"
         minSdk = 26

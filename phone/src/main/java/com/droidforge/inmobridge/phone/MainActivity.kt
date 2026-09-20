@@ -10,6 +10,7 @@ import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
+import com.droidforge.inmobridge.phone.BuildConfig
 
 /**
  * Minimal single-screen config UI (deliberately View-based — zero Compose
@@ -33,6 +34,8 @@ class MainActivity : Activity() {
         }
 
         fun label(t: String) = TextView(this).apply { text = t }
+
+        root.addView(label("InmoBridge Phone  v${BuildConfig.VERSION_NAME}").apply { textSize = 20f; setTextColor(0xFF0A84FF.toInt()) })
 
         root.addView(label("AI provider").apply { textSize = 20f })
 

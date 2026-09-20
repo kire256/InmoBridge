@@ -8,6 +8,7 @@ import android.util.AttributeSet
 import android.view.View
 import com.droidforge.inmobridge.core.CardSpec
 import com.droidforge.inmobridge.core.DockItem
+import com.droidforge.inmobridge.glasses.BuildConfig
 
 /**
  * Single custom view that renders the entire launcher surface for the glasses:
@@ -55,6 +56,13 @@ class LauncherView @JvmOverloads constructor(
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
         val density = resources.displayMetrics.density
+
+        // ---- Version indicator (top-left) ---- Draws once, cheap.
+        val verPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = 0x99FFFFFF.toInt()
+            textSize = 14f * density
+        }
+        canvas.drawText("v${BuildConfig.VERSION_NAME}", 12f * density, 24f * density, verPaint)
 
         // ---- App container (top) ----
         if (focusState.appsVisible) {

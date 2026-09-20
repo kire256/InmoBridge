@@ -7,6 +7,10 @@ android {
     namespace = "com.droidforge.inmobridge.glasses"
     compileSdk = 35
 
+    buildFeatures {
+        buildConfig = true
+    }
+
     defaultConfig {
         applicationId = "com.droidforge.inmobridge.glasses"
         minSdk = 26
