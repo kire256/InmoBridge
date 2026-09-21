@@ -16,14 +16,14 @@ import com.droidforge.inmobridge.core.DockItem
 import com.droidforge.inmobridge.core.Envelope
 
 /**
- * Glasses-side launcher. Transparent, fullscreen, keeps the screen on, owns the
+ * Glasses-side launcher. Opaque fullscreen, keeps the screen on, owns the
  * D-pad focus machine and the bridge connection lifecycle.
  *
  * Layout: a bottom dock strip — feature tiles plus an Apps tab and a Pair tab.
  * Pressing UP on a dock item opens THAT item's panel above: a submenu of its
- * actions, the installed-apps grid for the Apps tab, or pairing help for the
- * Pair tab. Pressing UP again from any panel's top row shows the pairing
- * overlay; DOWN/BACK closes one level at a time.
+ * actions, the horizontally scrolling app strip (4 fixed rows, alphabetical,
+ * column-major) for the Apps tab, or the pairing actions for the Pair tab.
+ * DOWN/BACK closes the panel. ENTER (or ENTER/tap) launches the focused item.
  */
 class LauncherActivity : AppCompatActivity() {
 
@@ -33,10 +33,10 @@ class LauncherActivity : AppCompatActivity() {
     private var bridge: BridgeClient? = null
     private var cardDismiss: Runnable? = null
 
-    /** Panels per dock item id; the Apps tab is special (PackageManager grid). */
+    /** Panels per dock item id; the Apps tab is special (PackageManager strip). */
     private val submenus = HashMap<String, List<DockItem>>()
 
-    /** Grid cells for the Apps tab (real installed apps). */
+    /** Alphabetical app strip for the Apps tab (real installed apps). */
     private var appGrid: List<DockItem> = emptyList()
 
     private val homeReceiver = object : BroadcastReceiver() {
@@ -62,13 +62,16 @@ class LauncherActivity : AppCompatActivity() {
         )
         view = LauncherView(this)
         setContentView(view)
+        // Touch-tap anywhere launches the focused item (covers INMO touchpads
+        // that deliver taps as MotionEvents instead of DPAD_CENTER/ENTER).
+        view.setOnClickListener { if (::focus.isInitialized) executeFocused() }
 
         // Seed with sensible offline defaults until the phone pushes a config
         view.dockItems = defaultDock()
         buildSubmenus()
         appGrid = loadInstalledApps()
 
-        focus = LauncherFocus(view.dockItems.size, ::currentRowSizes) { st ->
+        focus = LauncherFocus(view.dockItems.size) { st ->
             view.focusState = st
             syncPanel()
         }
@@ -100,7 +103,7 @@ class LauncherActivity : AppCompatActivity() {
         DockItem("pair_tab", "Pair", "⌘", "pair", ""),
     )
 
-    /** One submenu row per dock feature tile. */
+    /** One submenu row per dock feature tile. Pair gets real actions. */
     private fun buildSubmenus() {
         submenus["nav"] = listOf(
             DockItem("nav_home", "Home", "⌂", "intent", "inmo, navigate home"),
@@ -119,9 +122,13 @@ class LauncherActivity : AppCompatActivity() {
         submenus["voice"] = listOf(
             DockItem("voice_start", "Start voice", "◉", "intent", "voice"),
         )
+        submenus["pair_tab"] = listOf(
+            DockItem("pair_open", "Pair with phone", "⌘", "pair", ""),
+            DockItem("pair_help", "How to pair", "?", "pair", ""),
+        )
     }
 
-    /** Enumerate launchable apps for the Apps tab grid. */
+    /** Alphabetical launchable apps for the Apps tab strip. */
     private fun loadInstalledApps(): List<DockItem> {
         val pm = packageManager
         val launchables = pm.queryIntentActivities(
@@ -132,7 +139,6 @@ class LauncherActivity : AppCompatActivity() {
         return launchables.asSequence()
             .filter { it.activityInfo.packageName != self }
             .distinctBy { it.activityInfo.packageName }
-            .take(MAX_APPS)
             .map { info ->
                 DockItem(
                     id = "pkg_${info.activityInfo.packageName}",
@@ -143,13 +149,13 @@ class LauncherActivity : AppCompatActivity() {
                 )
             }
             .sortedBy { it.label.lowercase() }
+            .take(MAX_APPS)
             .toList()
     }
 
-    /** Re-render whatever panel the current focus state implies. */
+    /** Re-render whatever panel the current focus state implies + push geometry. */
     private fun syncPanel() {
         val st = focus.state
-        view.pairVisible = st.zone == LauncherFocus.Zone.PAIR
         view.panel = when {
             st.zone != LauncherFocus.Zone.PANEL -> null
             isAppsTabFocused() -> PanelUi.Grid(appGrid)
@@ -159,29 +165,20 @@ class LauncherActivity : AppCompatActivity() {
                 PanelUi.Row(dockItem?.label ?: "", items)
             }
         }
+        // Tell the focus machine the open panel's shape (columns / item count).
+        when (val p = view.panel) {
+            is PanelUi.Grid -> focus.setPanelGeometry(
+                LauncherFocus.GRID_ROWS,
+                ((p.items.size + LauncherFocus.GRID_ROWS - 1) / LauncherFocus.GRID_ROWS).coerceAtLeast(1),
+                p.items.size,
+            )
+            is PanelUi.Row -> focus.setPanelGeometry(1, p.items.size.coerceAtLeast(1), p.items.size)
+            null -> Unit
+        }
     }
 
     private fun isAppsTabFocused(): Boolean =
         view.dockItems.getOrNull(focus.state.dockIndex)?.action == "apps"
-
-    /**
-     * Row-size provider for the focus machine: how many cells each row of the
-     * currently open panel holds. Grid = chunks of [LauncherFocus.GRID_COLS];
-     * submenu = one row; closed = single dummy row.
-     */
-    private fun currentRowSizes(): IntArray {
-        if (focus.state.zone != LauncherFocus.Zone.PANEL) return intArrayOf(1)
-        return if (isAppsTabFocused()) {
-            val n = appGrid.size
-            if (n == 0) intArrayOf(1) else IntArray((n + LauncherFocus.GRID_COLS - 1) / LauncherFocus.GRID_COLS) { r ->
-                minOf(LauncherFocus.GRID_COLS, n - r * LauncherFocus.GRID_COLS)
-            }
-        } else {
-            val n = view.dockItems.getOrNull(focus.state.dockIndex)
-                ?.let { submenus[it.id] }?.size ?: 0
-            intArrayOf(n.coerceAtLeast(1))
-        }
-    }
 
     private fun onEnvelope(env: Envelope) {
         when (env.type) {
@@ -204,29 +201,24 @@ class LauncherActivity : AppCompatActivity() {
     /**
      * The phone pushes feature tiles (dock + app_* ids). Keep OUR dock (it owns
      * the Apps/Pair tabs and submenu wiring); phone app_* items that aren't
-     * already real installed apps are appended to the Apps grid.
+     * already real installed apps are appended to the app strip (kept sorted).
      */
     private fun onConfig(items: List<DockItem>) {
         val knownIds = appGrid.mapTo(HashSet()) { it.id }
         val extras = items.filter { it.id.startsWith("app_") && it.id !in knownIds }
         if (extras.isNotEmpty()) {
-            appGrid = (appGrid + extras).distinctBy { it.id }.take(MAX_APPS)
+            appGrid = (appGrid + extras).distinctBy { it.id }
+                .sortedBy { it.label.lowercase() }
+                .take(MAX_APPS)
         }
         syncPanel()
     }
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
-        // Inside a panel, UP/DOWN move between grid rows first; UP from the top
-        // row climbs to the pairing overlay, DOWN from the bottom closes.
-        if (focus.state.zone == LauncherFocus.Zone.PANEL &&
-            (keyCode == KeyEvent.KEYCODE_DPAD_UP || keyCode == KeyEvent.KEYCODE_DPAD_DOWN)
-        ) {
-            val dir = if (keyCode == KeyEvent.KEYCODE_DPAD_UP) -1 else 1
-            if (focus.panelVertical(dir)) return true
-            return if (dir < 0) { focus.up(); true } else { focus.down(); true }
-        }
         if (focus.onKey(keyCode)) {
-            if (keyCode == LauncherFocus.KEY_ENTER) executeFocused()
+            if (keyCode == KeyEvent.KEYCODE_DPAD_CENTER || keyCode == KeyEvent.KEYCODE_ENTER) {
+                executeFocused()
+            }
             return true
         }
         return super.onKeyDown(keyCode, event)
@@ -234,14 +226,13 @@ class LauncherActivity : AppCompatActivity() {
 
     private fun executeFocused() {
         when (focus.state.zone) {
-            LauncherFocus.Zone.PAIR -> openPairing()
             LauncherFocus.Zone.DOCK -> focus.up() // any dock item opens its panel
             LauncherFocus.Zone.PANEL -> {
                 val item = if (isAppsTabFocused()) {
-                    appGrid.getOrNull(focus.focusedIndex())
+                    appGrid.getOrNull(focus.focusedGridIndex())
                 } else {
                     view.dockItems.getOrNull(focus.state.dockIndex)
-                        ?.let { submenus[it.id]?.getOrNull(focus.state.panelCol) }
+                        ?.let { submenus[it.id]?.getOrNull(focus.focusedSubmenuIndex()) }
                 }
                 if (item != null) executePanelItem(item) else showCard(CardSpec("Empty", listOf("Nothing here yet")))
             }
@@ -283,7 +274,7 @@ class LauncherActivity : AppCompatActivity() {
     /** HOME pressed while we were front: drop back to the dock, close overlays. */
     private fun relaunch() {
         view.card = null
-        while (focus.state.zone != LauncherFocus.Zone.DOCK) focus.down()
+        if (focus.state.zone != LauncherFocus.Zone.DOCK) focus.down()
     }
 
     private fun showCard(spec: CardSpec) {
@@ -298,6 +289,6 @@ class LauncherActivity : AppCompatActivity() {
     private fun nextId() = idCounter++
 
     companion object {
-        private const val MAX_APPS = 24
+        private const val MAX_APPS = 48
     }
 }

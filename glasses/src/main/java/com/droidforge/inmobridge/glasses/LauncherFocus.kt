@@ -1,43 +1,41 @@
 package com.droidforge.inmobridge.glasses
 
 /**
- * Multi-zone focus state machine for the glasses launcher.
+ * Two-zone focus state machine for the glasses launcher with a
+ * geometry-injectable panel (apps grid or a one-row submenu).
  *
  * Zones:
  *  - DOCK  : bottom strip, always visible. LEFT/RIGHT cycle items.
- *  - PANEL : a panel above the dock (apps grid or a dock item's submenu).
- *            LEFT/RIGHT cycle within the current row; panelVertical() moves
- *            between rows using row sizes supplied by the [rowSizes] provider
- *            (the Activity knows whether a grid or a one-row submenu is open).
- *  - PAIR  : modal pairing-help overlay above everything.
+ *  - PANEL : the open panel above the dock. The Activity pushes the panel's
+ *            shape via [setPanelGeometry] (rows x cols, item count). The apps
+ *            grid is COLUMN-MAJOR (4 fixed rows; index = col*rows + row) so
+ *            alphabetical order runs DOWN each column, then to the next
+ *            column — the panel scrolls horizontally. LEFT/RIGHT move between
+ *            columns; UP/DOWN between rows (UP at the top row wraps to the
+ *            bottom; DOWN at the bottom edge reports false so the Activity
+ *            can close the panel).
  *
  * Transitions (D-pad):
- *  - UP      : DOCK -> open the focused dock item's panel.
- *              PANEL -> PAIR overlay (reachable from any panel's top row).
- *  - DOWN    : PANEL -> DOCK (close). PAIR -> back to the panel below.
- *  - BACK    : same as DOWN (close one level).
- *  - LEFT/RIGHT : cycle within the current zone (PAIR: no-op).
- *  - ENTER   : consumed here; execution handled by the Activity (item lookup).
+ *  - UP      : DOCK -> open the focused dock item's panel. PANEL -> row move
+ *              (wrap at top).
+ *  - DOWN    : DOCK -> no-op. PANEL -> row move; at the bottom edge closes.
+ *  - BACK    : closes the panel.
+ *  - LEFT/RIGHT : cycle dock items (DOCK) or panel columns/items (PANEL).
+ *  - ENTER   : consumed; execution handled by the Activity (item lookup).
  *
- * The machine is pure state -> trivially unit-testable; the Activity binds it
- * to key events and view updates. No-ops emit nothing.
+ * Pure state -> trivially unit-testable; the Activity binds it to keys/views.
  */
 class LauncherFocus(
     dockCount: Int,
-    private val rowSizes: () -> IntArray,
     private val onState: (State) -> Unit,
 ) {
-    enum class Zone { DOCK, PANEL, PAIR }
+    enum class Zone { DOCK, PANEL }
 
     data class State(
         val zone: Zone,
         val dockIndex: Int,
-        /** Column within the open panel's current row. */
-        val panelCol: Int = 0,
-        /** Row within the open panel. */
         val panelRow: Int = 0,
-        /** Cell count of the open panel's current row. */
-        val panelRowSize: Int = 1,
+        val panelCol: Int = 0,
         /** True once any panel has been opened (drives hint visibility). */
         val panelEverOpened: Boolean = false,
     ) {
@@ -46,57 +44,93 @@ class LauncherFocus(
 
     private val dockN = dockCount.coerceAtLeast(1)
 
+    // Panel geometry, pushed by the Activity whenever the open panel changes.
+    private var panelRows = 1
+    private var panelCols = 1
+    private var panelCount = 1
+
     var state: State = State(Zone.DOCK, 0)
         private set
 
-    /** UP: DOCK opens the focused dock item's panel; PANEL shows the pair overlay. */
+    /**
+     * Push the open panel's shape. Call before reading focus positions after
+     * the panel content changes. Silently clamps the current cell (no emit).
+     */
+    fun setPanelGeometry(rows: Int, cols: Int, count: Int) {
+        panelRows = rows.coerceAtLeast(1)
+        panelCols = cols.coerceAtLeast(1)
+        panelCount = count.coerceAtLeast(1)
+        if (state.zone == Zone.PANEL) {
+            val last = panelCount - 1
+            val col = state.panelCol.coerceIn(0, panelCols - 1)
+            val row = state.panelRow.coerceIn(0, lastValidRowInCol(col))
+            state = if (cellIndex(row, col) > last) {
+                state.copy(panelRow = last % panelRows, panelCol = last / panelRows)
+            } else {
+                state.copy(panelRow = row, panelCol = col)
+            }
+        }
+    }
+
+    /** Column-major flat index of the focused grid cell. */
+    fun focusedGridIndex(): Int = cellIndex(state.panelRow, state.panelCol)
+
+    /** Focused item within a one-row submenu. */
+    fun focusedSubmenuIndex(): Int = state.panelCol
+
+    /** UP from DOCK opens the focused dock item's panel. No-op in PANEL. */
     fun up() {
-        when (state.zone) {
-            Zone.DOCK -> {
-                state = State(
-                    zone = Zone.PANEL,
-                    dockIndex = state.dockIndex,
-                    panelCol = 0,
-                    panelRow = 0,
-                    panelRowSize = currentRowSize(0),
-                    panelEverOpened = true,
-                )
-                onState(state)
-            }
-            Zone.PANEL -> {
-                state = state.copy(zone = Zone.PAIR)
-                onState(state)
-            }
-            Zone.PAIR -> Unit
+        if (state.zone == Zone.DOCK) {
+            state = State(
+                zone = Zone.PANEL,
+                dockIndex = state.dockIndex,
+                panelRow = 0,
+                panelCol = 0,
+                panelEverOpened = true,
+            )
+            onState(state)
         }
     }
 
-    /** DOWN/BACK: close one level (PAIR -> PANEL -> DOCK). No-op in DOCK. */
+    /** DOWN/BACK closes the panel. No-op in DOCK. */
     fun down() {
-        when (state.zone) {
-            Zone.PANEL -> {
-                state = state.copy(
-                    zone = Zone.DOCK,
-                    panelCol = 0,
-                    panelRow = 0,
-                    panelRowSize = 1,
-                )
-                onState(state)
-            }
-            Zone.PAIR -> {
-                state = state.copy(zone = Zone.PANEL)
-                onState(state)
-            }
-            Zone.DOCK -> Unit
+        if (state.zone == Zone.PANEL) {
+            state = State(
+                zone = Zone.DOCK,
+                dockIndex = state.dockIndex,
+                panelEverOpened = true,
+            )
+            onState(state)
         }
     }
 
-    /** BACK behaves like DOWN (one level of closing). */
+    /** BACK behaves like DOWN. */
     fun back() = down()
 
     fun left() = cycle(-1)
 
     fun right() = cycle(1)
+
+    /**
+     * UP/DOWN between rows of the panel grid. UP at the top row wraps to the
+     * bottom; DOWN at the bottom edge returns false (Activity closes the
+     * panel). Single-row panels always return false.
+     */
+    fun panelVertical(dir: Int): Boolean {
+        if (state.zone != Zone.PANEL || panelRows <= 1) return false
+        val col = state.panelCol.coerceIn(0, panelCols - 1)
+        val lastValidRow = lastValidRowInCol(col)
+        val row = state.panelRow.coerceIn(0, lastValidRow)
+        val newRow = if (dir < 0) {
+            if (row == 0) lastValidRow else row - 1 // top wraps to bottom
+        } else {
+            if (row >= lastValidRow) return false   // bottom edge -> close
+            row + 1
+        }
+        state = state.copy(panelRow = newRow, panelCol = col)
+        onState(state)
+        return true
+    }
 
     private fun cycle(dir: Int) {
         when (state.zone) {
@@ -105,58 +139,40 @@ class LauncherFocus(
                 onState(state)
             }
             Zone.PANEL -> {
-                val size = currentRowSize(state.panelRow)
-                state = state.copy(panelCol = wrap(state.panelCol + dir, size), panelRowSize = size)
+                val col = wrap(state.panelCol + dir, panelCols)
+                val row = state.panelRow.coerceIn(0, lastValidRowInCol(col))
+                state = state.copy(panelRow = row, panelCol = col)
                 onState(state)
             }
-            Zone.PAIR -> Unit
         }
     }
 
-    /** UP/DOWN movement *within* the panel grid (row-size aware). */
-    fun panelVertical(dir: Int): Boolean {
-        if (state.zone != Zone.PANEL) return false
-        val rows = rowSizes()
-        if (rows.isEmpty()) return false
-        val newRow = state.panelRow + dir
-        if (newRow < 0 || newRow >= rows.size) return false
-        state = state.copy(
-            panelRow = newRow,
-            panelCol = state.panelCol.coerceAtMost(rows[newRow] - 1),
-            panelRowSize = rows[newRow],
-        )
-        onState(state)
-        return true
-    }
+    private fun cellIndex(row: Int, col: Int) = col * panelRows + row
 
-    private fun currentRowSize(row: Int): Int {
-        val rows = rowSizes()
-        return rows.getOrNull(row)?.coerceAtLeast(1) ?: 1
-    }
-
-    /** Flat cell index within the panel grid ([GRID_COLS]-wide rows). */
-    fun focusedIndex(): Int = when (state.zone) {
-        Zone.DOCK -> state.dockIndex
-        else -> state.panelRow * GRID_COLS + state.panelCol
+    private fun lastValidRowInCol(col: Int): Int {
+        val last = panelCount - 1
+        return if (col < last / panelRows) panelRows - 1 else last % panelRows
     }
 
     fun onKey(keyCode: Int): Boolean = when (keyCode) {
-        KEY_UP -> { up(); true }
-        KEY_DOWN -> { down(); true }
+        KEY_UP -> { if (!panelVertical(-1)) up(); true }
+        KEY_DOWN -> { if (!panelVertical(1)) down(); true }
         KEY_LEFT -> { left(); true }
         KEY_RIGHT -> { right(); true }
-        KEY_ENTER -> true  // execution handled by the Activity (needs item lookup)
+        KEY_ENTER, KEY_ENTER_ALT -> true // execution handled by the Activity
         KEY_BACK -> { back(); true }
         else -> false
     }
 
     companion object {
-        const val GRID_COLS = 4
+        /** Fixed row count of the apps grid. */
+        const val GRID_ROWS = 4
         const val KEY_UP = 19
         const val KEY_DOWN = 20
         const val KEY_LEFT = 21
         const val KEY_RIGHT = 22
-        const val KEY_ENTER = 23
+        const val KEY_ENTER = 23        // KEYCODE_DPAD_CENTER
+        const val KEY_ENTER_ALT = 66    // KEYCODE_ENTER
         const val KEY_BACK = 4
 
         private fun wrap(i: Int, n: Int) = ((i % n) + n) % n

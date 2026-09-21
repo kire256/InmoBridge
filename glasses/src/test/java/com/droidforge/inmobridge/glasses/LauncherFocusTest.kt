@@ -7,23 +7,17 @@ import org.junit.Test
 
 class LauncherFocusTest {
 
-    /** Mutable row-size provider so tests can simulate grid vs submenu panels. */
-    private class Rows(var sizes: IntArray = intArrayOf(1)) {
-        operator fun invoke(): IntArray = sizes
-    }
-
     private fun machine(
-        dock: Int = 4,
-        rows: Rows = Rows(intArrayOf(1)),
-    ): Triple<LauncherFocus, Rows, MutableList<LauncherFocus.State>> {
+        dock: Int = 6,
+    ): Pair<LauncherFocus, MutableList<LauncherFocus.State>> {
         val states = mutableListOf<LauncherFocus.State>()
-        val m = LauncherFocus(dock, { rows() }) { states.add(it) }
-        return Triple(m, rows, states)
+        val m = LauncherFocus(dock) { states.add(it) }
+        return m to states
     }
 
     @Test
     fun `starts in dock with nothing visible`() {
-        val (m, _, _) = machine()
+        val (m, _) = machine()
         assertEquals(LauncherFocus.Zone.DOCK, m.state.zone)
         assertFalse(m.state.appsVisible)
         assertEquals(0, m.state.dockIndex)
@@ -31,118 +25,124 @@ class LauncherFocusTest {
 
     @Test
     fun `up opens a panel for the focused dock item`() {
-        val (m, rows, s) = machine()
-        m.right() // focus dock item 1
+        val (m, s) = machine()
+        m.right() // dock item 1
         m.up()
         assertEquals(LauncherFocus.Zone.PANEL, m.state.zone)
         assertTrue(m.state.appsVisible)
         assertEquals(1, m.state.dockIndex) // dock selection preserved
-        assertEquals(0, m.state.panelCol)
-        assertEquals(0, m.state.panelRow)
-        assertEquals(intArrayOf(1).size, rows().size) // provider was consultable
         assertTrue(m.state.panelEverOpened)
-        assertEquals(2, s.size) // right + up, nothing else
+        assertEquals(2, s.size) // right + up only
     }
 
     @Test
-    fun `up again from panel shows pair overlay and down unwinds one level`() {
-        val (m, _, s) = machine()
-        m.up()          // DOCK -> PANEL
-        m.up()          // PANEL -> PAIR
-        assertEquals(LauncherFocus.Zone.PAIR, m.state.zone)
-        assertEquals(2, s.size)
-        m.down()        // PAIR -> PANEL
-        assertEquals(LauncherFocus.Zone.PANEL, m.state.zone)
-        m.down()        // PANEL -> DOCK
+    fun `dock cycling wraps both directions`() {
+        val (m, _) = machine(dock = 3)
+        m.right(); m.right(); m.right()
+        assertEquals(0, m.state.dockIndex) // wrapped forward
+        m.left()
+        assertEquals(2, m.state.dockIndex) // wrapped back
+    }
+
+    @Test
+    fun `grid is column-major with 4 fixed rows`() {
+        val (m, _) = machine()
+        m.up()
+        // 20 items, 4 rows -> 5 columns
+        m.setPanelGeometry(4, 5, 20)
+        assertEquals(0, m.focusedGridIndex())
+        m.panelVertical(1)                  // row 1, col 0
+        assertEquals(1, m.focusedGridIndex())
+        m.right()                           // col 1, row stays 1
+        assertEquals(1 * 4 + 1, m.focusedGridIndex())
+        m.panelVertical(-1)                 // row 0
+        m.panelVertical(-1)                 // wraps to bottom row (3)
+        assertEquals(1 * 4 + 3, m.focusedGridIndex())
+    }
+
+    @Test
+    fun `up at top row wraps to bottom of same column`() {
+        val (m, _) = machine()
+        m.up()
+        m.setPanelGeometry(4, 5, 20)
+        assertTrue(m.panelVertical(-1)) // row 0 -> row 3
+        assertEquals(3, m.state.panelRow)
+        assertEquals(0, m.state.panelCol)
+    }
+
+    @Test
+    fun `down at bottom edge closes the panel`() {
+        val (m, _) = machine()
+        m.up()
+        m.setPanelGeometry(4, 5, 20)
+        m.panelVertical(1); m.panelVertical(1); m.panelVertical(1) // row 3
+        assertFalse(m.panelVertical(1)) // bottom edge -> refuse
+        m.down()                        // -> closes
         assertEquals(LauncherFocus.Zone.DOCK, m.state.zone)
         assertFalse(m.state.appsVisible)
-        assertEquals(4, s.size)
     }
 
     @Test
-    fun `back closes one level like down`() {
-        val (m, _, _) = machine()
+    fun `column move clamps row to the new column's last valid row`() {
+        val (m, _) = machine()
+        m.up()
+        m.setPanelGeometry(4, 5, 18) // col 4 holds only items 16,17 (rows 0,1)
+        m.panelVertical(1); m.panelVertical(1) // row 2, col 0
+        m.right() // -> col 1 (full column, row 2 valid)
+        assertEquals(1, m.state.panelCol)
+        assertEquals(2, m.state.panelRow)
+        m.right() // -> col 2
+        m.right() // -> col 3
+        m.right() // -> col 4: rows 2,3 don't exist there
+        assertEquals(4, m.state.panelCol)
+        assertEquals(1, m.state.panelRow)
+        assertEquals(17, m.focusedGridIndex())
+    }
+
+    @Test
+    fun `setPanelGeometry clamps an out-of-range cell when shrinking`() {
+        val (m, _) = machine()
+        m.up()
+        m.setPanelGeometry(4, 5, 20)
+        m.panelVertical(1); m.panelVertical(1); m.panelVertical(1) // row 3
+        m.right(); m.right(); m.right(); m.right()                 // col 4
+        assertEquals(19, m.focusedGridIndex())
+        m.setPanelGeometry(4, 2, 6)                                 // shrink to 6 items
+        assertEquals(5, m.focusedGridIndex())                       // snapped to last cell
+        assertEquals(1, m.state.panelCol)
+        assertEquals(1, m.state.panelRow)
+    }
+
+    @Test
+    fun `single-row submenu uses columns and closes with down`() {
+        val (m, _) = machine()
+        m.up()
+        m.setPanelGeometry(1, 3, 3)
+        assertFalse(m.panelVertical(1)) // single row: vertical always refuses
+        assertFalse(m.panelVertical(-1))
+        m.right(); m.right(); m.right() // wrap 2 -> 0
+        assertEquals(0, m.focusedSubmenuIndex())
+        m.down()
+        assertEquals(LauncherFocus.Zone.DOCK, m.state.zone)
+    }
+
+    @Test
+    fun `back closes the panel like down`() {
+        val (m, _) = machine()
         m.up()
         m.back()
         assertEquals(LauncherFocus.Zone.DOCK, m.state.zone)
     }
 
     @Test
-    fun `up and down in dock are the only panel openers and emit once`() {
-        val (m, _, s) = machine()
-        m.down() // no-op in dock
-        assertEquals(LauncherFocus.Zone.DOCK, m.state.zone)
-        assertEquals(0, s.size)
-        m.up()
-        assertEquals(1, s.size)
-        m.up() // PANEL -> PAIR
-        m.up() // no-op in PAIR
-        assertEquals(LauncherFocus.Zone.PAIR, m.state.zone)
-        assertEquals(2, s.size)
-    }
-
-    @Test
-    fun `left right cycle dock with wraparound`() {
-        val (m, _, _) = machine(dock = 3)
-        m.right(); m.right(); m.right()
-        assertEquals(0, m.state.dockIndex) // wrapped
-        m.left()
-        assertEquals(2, m.state.dockIndex) // wrapped back
-    }
-
-    @Test
-    fun `panel left right wrap within current row size`() {
-        val (m, rows, _) = machine(rows = Rows(intArrayOf(4, 2)))
-        m.up() // panel row 0, size 4
-        assertEquals(4, m.state.panelRowSize)
-        m.left()
-        assertEquals(3, m.state.panelCol) // wrapped 0 -> 3
-        m.right(); m.right() // 0, 1
-        assertEquals(1, m.state.panelCol)
-        rows.sizes = intArrayOf(4, 2) // simulate switching row below via provider
-        assertTrue(m.panelVertical(1))
-        assertEquals(1, m.state.panelRow)
-        assertEquals(2, m.state.panelRowSize)
-        m.right()
-        assertEquals(0, m.state.panelCol) // wrapped 1 -> 0 in a 2-wide row
-    }
-
-    @Test
-    fun `panelVertical clamps column to the new row and refuses edges`() {
-        val (m, rows, _) = machine(rows = Rows(intArrayOf(4, 1)))
-        m.up()
-        m.right(); m.right() // col 2
-        assertTrue(m.panelVertical(1)) // row 1 has 1 cell -> col clamped to 0
-        assertEquals(0, m.state.panelCol)
-        assertFalse(m.panelVertical(1)) // already last row
-        assertFalse(m.panelVertical(-1).not()) // up works (returns true)
-        assertEquals(0, m.state.panelRow)
-        rows.sizes = intArrayOf(1)
-        m.panelVertical(1)
-        assertTrue(m.panelVertical(1).not()) // refused at edge again
-    }
-
-    @Test
-    fun `focusedIndex is flat grid math in panel and dock index in dock`() {
-        val (m, rows, _) = machine(rows = Rows(intArrayOf(4, 4)))
-        m.up()
-        m.panelVertical(1)
-        m.right(); m.right()
-        assertEquals(1 * LauncherFocus.GRID_COLS + 2, m.focusedIndex())
-        m.down()
-        m.right()
-        assertEquals(1, m.focusedIndex())
-    }
-
-    @Test
-    fun `key codes map to transitions including back`() {
-        val (m, _, _) = machine()
-        assertTrue(m.onKey(LauncherFocus.KEY_UP))
+    fun `key codes map to transitions`() {
+        val (m, _) = machine()
+        assertTrue(m.onKey(LauncherFocus.KEY_UP))          // open panel
         assertEquals(LauncherFocus.Zone.PANEL, m.state.zone)
-        assertTrue(m.onKey(LauncherFocus.KEY_ENTER)) // consumed, no crash
-        assertTrue(m.onKey(LauncherFocus.KEY_BACK))
+        assertTrue(m.onKey(LauncherFocus.KEY_BACK))        // close
         assertEquals(LauncherFocus.Zone.DOCK, m.state.zone)
-        assertTrue(m.onKey(LauncherFocus.KEY_DOWN).not().not()) // consumed no-op
+        assertTrue(m.onKey(LauncherFocus.KEY_ENTER))       // consumed
+        assertTrue(m.onKey(LauncherFocus.KEY_ENTER_ALT))   // consumed
         assertFalse(m.onKey(9999))
     }
 }
