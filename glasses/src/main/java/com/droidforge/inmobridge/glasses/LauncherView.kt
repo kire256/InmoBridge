@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
+import android.graphics.drawable.Drawable
 import android.util.AttributeSet
 import android.view.View
 import com.droidforge.inmobridge.core.CardSpec
@@ -36,6 +37,18 @@ class LauncherView @JvmOverloads constructor(
 
     /** Open panel above the dock, or null when closed (dock-only mode). */
     var panel: PanelUi? = null
+        set(value) { field = value; invalidate() }
+
+    /** Items of the currently-selected apps category (Apps tab, grid level). */
+    var appsPanel: List<DockItem> = emptyList()
+        set(value) { field = value; invalidate() }
+
+    /** Real app icons by DockItem id (Apps strip draws these instead of glyphs). */
+    var appIcons: Map<String, Drawable?> = emptyMap()
+        set(value) { field = value; invalidate() }
+
+    /** Pairing status pill text; null hides the pill. */
+    var bridgeStatus: String? = null
         set(value) { field = value; invalidate() }
 
     /** Current focus state pushed by [LauncherFocus]. */
@@ -83,6 +96,9 @@ class LauncherView @JvmOverloads constructor(
             textAlign = Paint.Align.LEFT
         }
         canvas.drawText("v${BuildConfig.VERSION_NAME}", 12f * d, 24f * d, verPaint)
+
+        // ---- Pairing status pill (top-right) ----
+        drawStatusPill(canvas, d, w)
 
         // ---- Panel above the dock (app strip / submenu) ----
         panel?.let { p ->
@@ -240,13 +256,44 @@ class LauncherView @JvmOverloads constructor(
         }
         val cx = x + cellW / 2f
         val iconY = y + cellH * 0.45f
-        canvas.drawText(item.icon, cx, iconY, iconPaint)
+        val realIcon = appIcons[item.id]
+        if (realIcon != null) {
+            val s = (cellH * 0.42f).toInt().coerceAtLeast(16)
+            val left = cx - s / 2f
+            val top = iconY - s * 0.72f
+            realIcon.setBounds(left.toInt(), top.toInt(), left.toInt() + s, top.toInt() + s)
+            realIcon.draw(canvas)
+        } else {
+            canvas.drawText(item.icon, cx, iconY, iconPaint)
+        }
         val labelPaint = if (selected) {
             Paint(textPaint).apply { textSize = 20f * d; textAlign = Paint.Align.CENTER }
         } else {
             Paint(dimTextPaint).apply { textSize = 20f * d; textAlign = Paint.Align.CENTER }
         }
         canvas.drawText(item.label, cx, y + cellH - 10f * d, labelPaint)
+    }
+
+    /** Pairing status pill, top-right under the version string. */
+    private fun drawStatusPill(canvas: Canvas, d: Float, w: Float) {
+        val text = bridgeStatus ?: return
+        val p = Paint(dimTextPaint).apply {
+            textSize = 16f * d
+            textAlign = Paint.Align.LEFT
+        }
+        val pad = 8f * d
+        val tw = p.measureText(text)
+        val pillH = 26f * d
+        val right = w - 14f * d
+        val left = right - tw - pad * 2
+        val bg = when {
+            text.startsWith("Connected") -> 0x6639D2C0.toInt()
+            text.startsWith("Rejected") -> 0x66E85D5D.toInt()
+            else -> 0x44000000.toInt()
+        }
+        canvas.drawRoundRect(left, 34f * d, right, 34f * d + pillH, pillH / 2f, pillH / 2f,
+            Paint(0).apply { color = bg; isAntiAlias = true })
+        canvas.drawText(text, left + pad, 34f * d + pillH * 0.72f, p)
     }
 
     companion object {

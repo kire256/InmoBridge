@@ -23,6 +23,8 @@ import com.journeyapps.barcodescanner.ScanOptions
  */
 class PairingActivity : AppCompatActivity() {
 
+    private var statusListener: ((Int) -> Unit)? = null
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val d = resources.displayMetrics.density
@@ -47,6 +49,21 @@ class PairingActivity : AppCompatActivity() {
             textSize = 15f
         }
         root.addView(status)
+
+        // Live bridge state (updates the moment the phone accepts the token).
+        val live = TextView(this).apply { textSize = 15f }
+        root.addView(live)
+        statusListener = { s ->
+            live.text = "Bridge: ${statusText(s)}"
+            live.setTextColor(
+                when (s) {
+                    BridgeState.CONNECTED -> 0xFF39D2C0.toInt()
+                    BridgeState.REJECTED -> 0xFFE85D5D.toInt()
+                    else -> 0xFF9AA0A6.toInt()
+                }
+            )
+        }
+        BridgeState.addListener(statusListener!!)
 
         root.addView(TextView(this).apply {
             text = "HOW TO PAIR"
@@ -111,6 +128,18 @@ class PairingActivity : AppCompatActivity() {
         })
 
         setContentView(android.widget.ScrollView(this).apply { addView(root) })
+    }
+
+    private fun statusText(s: Int) = when (s) {
+        BridgeState.CONNECTED -> "Connected — pairing works"
+        BridgeState.CONNECTING -> "Connecting…"
+        BridgeState.REJECTED -> "Rejected — re-scan the QR"
+        else -> "Disconnected"
+    }
+
+    override fun onDestroy() {
+        statusListener?.let { BridgeState.removeListener(it) }
+        super.onDestroy()
     }
 
     private val scanner = registerForActivityResult(ScanContract(),
