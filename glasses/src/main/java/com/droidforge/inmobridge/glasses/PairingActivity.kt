@@ -3,9 +3,8 @@ package com.droidforge.inmobridge.glasses
 import androidx.appcompat.app.AppCompatActivity
 import android.content.Context
 import android.os.Bundle
-import android.content.pm.PackageManager
 import android.content.Intent
-import android.view.ViewGroup
+import android.view.Gravity
 import android.widget.Button
 import android.widget.EditText
 import android.widget.LinearLayout
@@ -19,13 +18,15 @@ import com.journeyapps.barcodescanner.ScanOptions
 /**
  * Glasses-side pairing: scan the phone's QR (camera) or paste the payload
  * manually. Stores host/port/token in app prefs; the launcher reconnects with
- * them on next start.
+ * them on next start. The screen doubles as illustrated instructions so the
+ * flow is discoverable without the overlay.
  */
 class PairingActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val pad = (resources.displayMetrics.density * 16).toInt()
+        val d = resources.displayMetrics.density
+        val pad = (d * 16).toInt()
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(pad, pad, pad, pad)
@@ -36,11 +37,38 @@ class PairingActivity : AppCompatActivity() {
             textSize = 22f
         })
 
+        val saved = PairingStore.load(this@PairingActivity)
         val status = TextView(this).apply {
-            val saved = PairingStore.load(this@PairingActivity)
-            text = if (saved != null) "Paired: ${saved.host}:${saved.port}" else "v${BuildConfig.VERSION_NAME} · Not paired"
+            text = if (saved != null) {
+                "Paired: ${saved.host}:${saved.port} · v${BuildConfig.VERSION_NAME}"
+            } else {
+                "Not paired yet · v${BuildConfig.VERSION_NAME}"
+            }
+            textSize = 15f
         }
         root.addView(status)
+
+        root.addView(TextView(this).apply {
+            text = "HOW TO PAIR"
+            textSize = 13f
+        })
+        listOf(
+            "1.  Open InmoBridge on your phone",
+            "2.  Tap  \"Pair glasses (show QR)\"",
+            "3.  Tap  Scan QR  below",
+            "4.  Point these glasses at the QR",
+        ).forEach { step ->
+            root.addView(TextView(this).apply {
+                text = step
+                textSize = 16f
+                setPadding((d * 8).toInt(), (d * 2).toInt(), 0, (d * 2).toInt())
+            })
+        }
+        root.addView(TextView(this).apply {
+            text = "No camera? Type the payload text shown under the phone's QR into the box below, then Save."
+            textSize = 13f
+            setPadding(0, (d * 6).toInt(), 0, 0)
+        })
 
         root.addView(Button(this).apply {
             text = "Scan QR"
@@ -55,8 +83,16 @@ class PairingActivity : AppCompatActivity() {
             }
         })
 
-        root.addView(TextView(this).apply { text = "Or paste payload:" })
-        val manual = EditText(this).apply { hint = "{\"v\":1,\"h\":…}" }
+        root.addView(TextView(this).apply {
+            text = "Or paste payload:"
+            textSize = 13f
+        })
+        val manual = EditText(this).apply {
+            hint = "{\"v\":1,\"h\":…}"
+            textSize = 14f
+            gravity = Gravity.TOP
+            minLines = 2
+        }
         root.addView(manual)
 
         root.addView(Button(this).apply {
