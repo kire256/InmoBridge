@@ -15,8 +15,8 @@ android {
         applicationId = "com.droidforge.inmobridge.phone"
         minSdk = 26
         targetSdk = 35
-        versionCode = 4
-        versionName = "0.4.0-qr-pairing"
+        versionCode = 5
+        versionName = "0.6.0-rayneo-tabs"
     }
 
     buildTypes {
@@ -41,6 +41,7 @@ dependencies {
     implementation(project(":core"))
     implementation("androidx.core:core-ktx:1.15.0")
     implementation("com.google.zxing:core:3.5.3")
+    implementation("com.google.mlkit:translate:17.0.3")
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.robolectric:robolectric:4.14.1")
     testImplementation("androidx.test:core:1.6.1")

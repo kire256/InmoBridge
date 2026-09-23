@@ -37,6 +37,7 @@ class LauncherActivity : AppCompatActivity() {
     )
 
     private lateinit var view: LauncherView
+    private lateinit var prompter: PrompterView
     private lateinit var focus: LauncherFocus
 
     private var bridge: BridgeClient? = null
@@ -75,6 +76,14 @@ class LauncherActivity : AppCompatActivity() {
         )
         view = LauncherView(this)
         setContentView(view)
+        prompter = PrompterView(this).apply { active = false; visibility = android.view.View.GONE }
+        addContentView(
+            prompter,
+            android.view.ViewGroup.LayoutParams(
+                android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+                android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+            ),
+        )
         // Touch-tap anywhere launches the focused item (covers INMO touchpads
         // that deliver taps as MotionEvents instead of DPAD_CENTER/ENTER).
         view.setOnClickListener { if (::focus.isInitialized) executeFocused() }
@@ -255,6 +264,29 @@ class LauncherActivity : AppCompatActivity() {
                     runOnUiThread { showCard(spec) }
                 }
             }
+            BridgeMessage.TYPE_PROMPTER -> {
+                val arr = env.payload.optJSONArray("lines")
+                val ls = ArrayList<String>(arr?.length() ?: 0)
+                if (arr != null) for (i in 0 until arr.length()) ls.add(arr.getString(i))
+                runOnUiThread {
+                    prompter.lines = ls
+                    prompter.index = 0
+                    prompter.active = ls.isNotEmpty()
+                    prompter.visibility =
+                        if (ls.isEmpty()) android.view.View.GONE else android.view.View.VISIBLE
+                }
+            }
+            BridgeMessage.TYPE_NAV -> {
+                val text = env.payload.optString("text")
+                val dist = env.payload.optString("distance")
+                runOnUiThread {
+                    if (text.isBlank()) {
+                        view.card = null // navigation ended
+                    } else {
+                        showCard(CardSpec(dist.ifBlank { "Navigating" }, listOf(text), timeoutMs = 15000))
+                    }
+                }
+            }
         }
     }
 
@@ -263,6 +295,15 @@ class LauncherActivity : AppCompatActivity() {
     }
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
+        // Teleprompter active: it owns the D-pad. BACK exits.
+        if (::prompter.isInitialized && prompter.active) {
+            if (keyCode == KeyEvent.KEYCODE_BACK) {
+                prompter.active = false
+                prompter.visibility = android.view.View.GONE
+                return true
+            }
+            return prompter.onKey(keyCode)
+        }
         // Apps strip: DOWN at the bottom edge (or BACK) returns to the category
         // picker instead of closing the panel entirely.
         if (focus.state.zone == LauncherFocus.Zone.PANEL &&

@@ -22,5 +22,15 @@
             android:name=".BridgeService"
             android:exported="false"
             android:foregroundServiceType="dataSync" />
+
+        <!-- Mirrors Google Maps turn-by-turn notifications to the glasses. -->
+        <service
+            android:name=".NavMirrorService"
+            android:exported="true"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
     </application>
 </manifest>

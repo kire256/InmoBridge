@@ -20,6 +20,8 @@ class BridgeService : Service() {
 
     override fun onCreate() {
         super.onCreate()
+        instance = this
+        running = true
         val nm = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
         nm.createNotificationChannel(
             NotificationChannel(
@@ -50,8 +52,14 @@ class BridgeService : Service() {
 
     override fun onDestroy() {
         server?.stop()
+        running = false
+        instance = null
         super.onDestroy()
     }
+
+    /** Send an envelope to the connected glasses. False when no server/link. */
+    fun sendToGlasses(env: com.droidforge.inmobridge.core.Envelope): Boolean =
+        server?.let { runCatching { it.send(env); true }.getOrDefault(false) } == true
 
     private var currentDock: List<com.droidforge.inmobridge.core.DockItem> = DockConfig.DEFAULT_DOCK
     private var currentApps: List<com.droidforge.inmobridge.core.DockItem> = DockConfig.DEFAULT_APPS
@@ -85,5 +93,15 @@ class BridgeService : Service() {
         const val PORT = 8899
         const val CHANNEL_ID = "bridge"
         const val NOTIF_ID = 42
+
+        /** Static handle so activities can push envelopes to the glasses. */
+        @Volatile
+        var instance: BridgeService? = null
+            private set
+
+        /** True while the foreground service (and TCP server) is alive. */
+        @Volatile
+        var running: Boolean = false
+            private set
     }
 }
