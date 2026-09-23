@@ -174,10 +174,41 @@ class MainActivity : Activity() {
 
         val row2 = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         row2.addView(toolCard("文", "Translate", "12 languages, on-device", 0xFF22A85C.toInt()) { ToolsDialogs.translate(this) }, lp())
-        row2.addView(toolCard("▦", "Layout", "Edit glasses dock", 0xFFE8A03C.toInt()) { showLayoutEditor() }, lp())
+        row2.addView(toolCard("⇄", "Conversation", "Live 2-way speech", 0xFFD25088.toInt()) { startActivity(android.content.Intent(this, ConversationActivity::class.java)) }, lp())
         page.addView(row2)
 
+        val row3 = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        row3.addView(toolCard("▦", "Layout", "Edit glasses dock", 0xFFE8A03C.toInt()) { showLayoutEditor() }, lp())
+        row3.addView(toolCard("✦", "Ask AI", "Send a question", 0xFF6C8DE8.toInt()) { askAiDialog() }, lp())
+        page.addView(row3)
+
         page.addView(caption("Touchpad: on the glasses, swipes drive the teleprompter and the launcher; tap selects."))
+    }
+
+    private fun askAiDialog() {
+        val input = EditText(this).apply { hint = "Ask anything…" ; setSingleLine(true) }
+        android.app.AlertDialog.Builder(this)
+            .setTitle("Ask AI")
+            .setView(LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                setPadding(dp(20f), dp(8f), dp(20f), 0)
+                addView(input)
+            })
+            .setPositiveButton("Send to glasses") { _, _ ->
+                val q = input.text.toString().trim()
+                if (q.isNotBlank()) {
+                    val intent = Intent(this, BridgeService::class.java).putExtra("cmd", "push_layout")
+                    startService(intent) // keep service alive
+                    Thread {
+                        val card = AiConfig.load(this).toProvider().ask(q)
+                        BridgeService.instance?.sendToGlasses(
+                            com.droidforge.inmobridge.core.BridgeMessage.reply(0, card, System.nanoTime())
+                        )
+                    }.start()
+                }
+            }
+            .setNegativeButton("Back", null)
+            .show()
     }
 
     private fun showLayoutEditor() {

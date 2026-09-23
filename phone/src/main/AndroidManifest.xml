@@ -18,6 +18,7 @@
             </intent-filter>
         </activity>
         <activity android:name=".PairingActivity" android:exported="false" />
+        <activity android:name=".ConversationActivity" android:exported="false" />
         <service
             android:name=".BridgeService"
             android:exported="false"

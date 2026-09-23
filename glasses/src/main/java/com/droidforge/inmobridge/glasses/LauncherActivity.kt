@@ -38,6 +38,7 @@ class LauncherActivity : AppCompatActivity() {
 
     private lateinit var view: LauncherView
     private lateinit var prompter: PrompterView
+    private lateinit var conversation: ConversationView
     private lateinit var focus: LauncherFocus
 
     private var bridge: BridgeClient? = null
@@ -79,6 +80,14 @@ class LauncherActivity : AppCompatActivity() {
         prompter = PrompterView(this).apply { active = false; visibility = android.view.View.GONE }
         addContentView(
             prompter,
+            android.view.ViewGroup.LayoutParams(
+                android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+                android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+            ),
+        )
+        conversation = ConversationView(this).apply { visibility = android.view.View.GONE }
+        addContentView(
+            conversation,
             android.view.ViewGroup.LayoutParams(
                 android.view.ViewGroup.LayoutParams.MATCH_PARENT,
                 android.view.ViewGroup.LayoutParams.MATCH_PARENT,
@@ -289,6 +298,26 @@ class LauncherActivity : AppCompatActivity() {
                     }
                 }
             }
+            BridgeMessage.TYPE_CHAT -> {
+                val side = env.payload.optString("side")
+                val text = env.payload.optString("text")
+                val orig = env.payload.optString("orig")
+                val live = env.payload.optBoolean("live", false)
+                runOnUiThread {
+                    when (side) {
+                        "start" -> {
+                            conversation.start()
+                            conversation.visibility = android.view.View.VISIBLE
+                        }
+                        "stop" -> {
+                            conversation.stop()
+                            conversation.visibility = android.view.View.GONE
+                        }
+                        "me" -> if (conversation.isActive()) conversation.push(true, text, orig, live)
+                        "them" -> if (conversation.isActive()) conversation.push(false, text, orig, live)
+                    }
+                }
+            }
         }
     }
 
@@ -297,6 +326,15 @@ class LauncherActivity : AppCompatActivity() {
     }
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
+        // Conversation mode active: it owns the screen. BACK exits to launcher.
+        if (::conversation.isInitialized && conversation.isActive()) {
+            if (keyCode == KeyEvent.KEYCODE_BACK) {
+                conversation.stop()
+                conversation.visibility = android.view.View.GONE
+                return true
+            }
+            return true // consume everything else
+        }
         // Teleprompter active: it owns the D-pad. BACK exits.
         if (::prompter.isInitialized && prompter.active) {
             if (keyCode == KeyEvent.KEYCODE_BACK) {

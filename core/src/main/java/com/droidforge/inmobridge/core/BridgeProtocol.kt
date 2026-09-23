@@ -55,6 +55,7 @@ object BridgeMessage {
     const val TYPE_EVENT = "event"
     const val TYPE_PROMPTER = "prompter"
     const val TYPE_NAV = "nav"
+    const val TYPE_CHAT = "chat"
 
     fun hello(side: String, deviceName: String, id: Long, token: String? = null): Envelope =
         Envelope(
@@ -93,6 +94,19 @@ object BridgeMessage {
     /** Phone → glasses: navigation state (maneuver text + distance). */
     fun nav(text: String, distance: String = "", id: Long): Envelope =
         Envelope(id, TYPE_NAV, JSONObject().put("text", text).put("distance", distance))
+
+    /**
+     * Phone → glasses: conversation-mode control + chat bubbles.
+     * side = "start" | "stop" | "me" | "them"; text = primary line (already
+     * translated where applicable), orig = secondary line (original speech),
+     * live = true while speech is still streaming (bubble is replaceable).
+     */
+    fun chat(side: String, text: String = "", id: Long, orig: String = "", live: Boolean = false): Envelope =
+        Envelope(id, TYPE_CHAT, JSONObject()
+            .put("side", side)
+            .put("text", text)
+            .put("orig", orig)
+            .put("live", live))
 }
 
 /** One feature tile assignable from the phone. */

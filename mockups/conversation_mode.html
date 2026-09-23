@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  body { margin: 0; background: #000; font-family: Roboto, "Segoe UI", sans-serif; display: flex; gap: 24px; padding: 24px; }
+  .frame { border-radius: 28px; border: 2px solid #222; overflow: hidden; display: flex; flex-direction: column; }
+  .phone { width: 380px; height: 800px; background: #000; }
+  .glasses { width: 640px; height: 360px; background: #000; }
+  .header { display: flex; align-items: center; justify-content: space-between; padding: 24px 20px 8px 20px; }
+  .title { color: #fff; font-size: 26px; font-weight: 800; }
+  .ver { color: #9AA0A6; font-size: 11px; background: rgba(255,255,255,.13); border-radius: 999px; padding: 4px 10px; }
+  .sheet { flex: 1; padding: 10px 20px; }
+  .hint { color: #9AA0A6; font-size: 12.5px; line-height: 1.5; }
+  .row { display: flex; align-items: center; margin: 16px 0; }
+  .sel { flex: 1; background: #141414; border-radius: 12px; color: #E8EAED; font-size: 15px; padding: 12px; text-align: center; }
+  .sel small { display: block; color: #9AA0A6; font-size: 10px; padding-bottom: 3px; }
+  .arrow { color: #39D2C0; padding: 0 12px; font-size: 18px; }
+  .status { color: #39D2C0; font-size: 13px; padding: 8px 0 14px 0; }
+  .btn { background: #232323; color: #fff; text-align: center; border-radius: 12px; padding: 14px; font-size: 15px; font-weight: 600; margin-bottom: 10px; }
+  .btn.ghost { background: #101010; color: #9AA0A6; font-weight: 400; border: 1px solid #222; }
+  /* glasses HUD */
+  .ghead { color: #39D2C0; font-size: 15px; padding: 14px 20px 6px 20px; }
+  .chat { flex: 1; display: flex; flex-direction: column; gap: 10px; padding: 8px 20px; }
+  .bubble { max-width: 72%; border-radius: 14px; padding: 10px 14px; font-size: 17px; line-height: 1.45; }
+  .me { align-self: flex-end; background: rgba(57,210,192,.20); border: 1px solid #39D2C0; }
+  .me .sub { color: rgba(255,255,255,.55); font-size: 12px; padding-top: 3px; }
+  .them { align-self: flex-start; background: rgba(255,255,255,.13); }
+  .them .sub { color: rgba(255,255,255,.55); font-size: 12px; padding-top: 3px; }
+  .label { color: #555; font-size: 11px; text-align: center; padding-top: 8px; letter-spacing: 1px; }
+</style>
+</head>
+<body>
+
+<div style="display:flex; flex-direction:column;">
+  <div class="frame phone">
+    <div class="header"><div class="title">Conversation</div><div class="ver">v0.6.0-rayneo-tabs</div></div>
+    <div class="sheet">
+      <div class="row">
+        <div class="sel"><small>I SPEAK</small>English</div>
+        <div class="arrow">&#8646;</div>
+        <div class="sel"><small>THEY SPEAK</small>Spanish</div>
+      </div>
+      <div class="status">● Live — listening… speak</div>
+      <div class="btn">Start conversation on glasses</div>
+      <div class="btn ghost">Stop</div>
+      <div class="hint">Recognition and translation run on this phone (ML Kit, on-device). The glasses just display: your words right in teal, their translated words left.</div>
+    </div>
+  </div>
+  <div class="label">PHONE — CONVERSATION SETUP</div>
+</div>
+
+<div style="display:flex; flex-direction:column;">
+  <div class="frame glasses">
+    <div class="ghead">Conversation — BACK to exit</div>
+    <div class="chat">
+      <div class="bubble them">¿Listo para ir al restaurante?<div class="sub">"Ready to go to the restaurant?"</div></div>
+      <div class="bubble me">Yes, let's walk — it's two blocks away.<div class="sub">"Sí, caminemos — está a dos cuadras."</div></div>
+      <div class="bubble them">Perfecto, yo también tengo hambre.<div class="sub">"Perfect, I'm hungry too."</div></div>
+    </div>
+  </div>
+  <div class="label">GLASSES HUD — CONVERSATION MODE (yours right/teal, theirs left/grey)</div>
+</div>
+
+</body>
+</html>
