@@ -9,9 +9,12 @@ import android.os.Bundle
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
+import android.speech.tts.TextToSpeech
+import android.speech.tts.UtteranceProgressListener
 import android.view.Gravity
 import android.view.ViewGroup
 import android.widget.ArrayAdapter
+import android.widget.CheckBox
 import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.TextView
@@ -20,6 +23,8 @@ import com.droidforge.inmobridge.core.BridgeMessage
 import com.google.mlkit.nl.translate.TranslateLanguage
 import com.google.mlkit.nl.translate.Translation
 import com.google.mlkit.nl.translate.TranslatorOptions
+import java.util.Locale
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * Conversation mode: pick two languages, talk; the phone runs speech
@@ -36,8 +41,19 @@ class ConversationActivity : Activity() {
     private var translatorMe: com.google.mlkit.nl.translate.Translator? = null
     private var translatorThem: com.google.mlkit.nl.translate.Translator? = null
 
+    private val REQ_MIC = 8802
+
     private var myLang = TranslateLanguage.ENGLISH
     private var theirLang = TranslateLanguage.SPANISH
+
+    // TTS: speaks each side's translation aloud (per-side toggles on the phone).
+    private var tts: TextToSpeech? = null
+    private var ttsReady = false
+    private val activeUtterances: MutableSet<String> = ConcurrentHashMap.newKeySet()
+    private var pendingRestart = false
+    private var live = false
+    private var speakMine: CheckBox? = null
+    private var speakThem: CheckBox? = null
 
     private val langs = listOf(
         "English" to TranslateLanguage.ENGLISH, "Spanish" to TranslateLanguage.SPANISH,
@@ -78,13 +94,33 @@ class ConversationActivity : Activity() {
         }
         root.addView(status)
 
+        val prefs = getSharedPreferences("conversation", MODE_PRIVATE)
+        speakMine = CheckBox(this).apply {
+            text = "Speak my lines aloud (in their language)"
+            setTextColor(Color.WHITE)
+            isChecked = prefs.getBoolean("speak_mine", false)
+        }
+        speakThem = CheckBox(this).apply {
+            text = "Speak their lines aloud (in my language)"
+            setTextColor(Color.WHITE)
+            isChecked = prefs.getBoolean("speak_them", false)
+        }
+        root.addView(speakMine)
+        root.addView(speakThem)
+
+        initTts()
+
         root.addView(Button(this).apply {
             text = "Start conversation on glasses"
             isAllCaps = false
             setOnClickListener {
                 myLang = langs[from.selectedItemPosition].second
                 theirLang = langs[to.selectedItemPosition].second
-                startConversation()
+                prefs.edit()
+                    .putBoolean("speak_mine", speakMine?.isChecked == true)
+                    .putBoolean("speak_them", speakThem?.isChecked == true)
+                    .apply()
+                maybeStart()
             }
         })
         root.addView(Button(this).apply {
@@ -127,10 +163,16 @@ class ConversationActivity : Activity() {
             return
         }
         status.text = "Live — speak now"
+        live = true
         startListening()
     }
 
     private fun startListening() {
+        if (!live) return
+        if (activeUtterances.isNotEmpty()) {
+            pendingRestart = true // TTS is talking; resume when it finishes
+            return
+        }
         if (!SpeechRecognizer.isRecognitionAvailable(this)) {
             status.text = "No speech recognition available on this phone"
             return
@@ -205,12 +247,89 @@ class ConversationActivity : Activity() {
                         orig = text, live = live,
                     )
                 )
+                val wantSpeak = if (mine) speakMine?.isChecked == true else speakThem?.isChecked == true
+                if (wantSpeak) speak(translated, if (mine) theirLang else myLang)
                 done?.invoke()
             }
             .addOnFailureListener { done?.invoke() }
     }
 
+    // ---------- Text-to-speech ----------
+
+    private fun initTts() {
+        tts = TextToSpeech(this) { st ->
+            ttsReady = st == TextToSpeech.SUCCESS
+            if (ttsReady) {
+                tts?.setOnUtteranceProgressListener(utteranceListener)
+            }
+        }
+    }
+
+    private val utteranceListener = object : UtteranceProgressListener() {
+        override fun onStart(utteranceId: String?) {}
+        override fun onDone(utteranceId: String?) { utteranceDone(utteranceId) }
+        @Deprecated("Deprecated in Java")
+        override fun onError(utteranceId: String?) { utteranceDone(utteranceId) }
+    }
+
+    /** Speak text in the given language; pauses the mic while talking. */
+    private fun speak(text: String, langCode: String) {
+        val engine = tts ?: return
+        if (!ttsReady || text.isBlank()) return
+        runCatching { recognizer?.cancel() } // don't listen to our own voice
+        runCatching {
+            val res = engine.setLanguage(Locale.forLanguageTag(langCode))
+            if (res == TextToSpeech.LANG_MISSING_DATA || res == TextToSpeech.LANG_NOT_SUPPORTED) {
+                runOnUiThread {
+                    status.text = "No TTS voice for '$langCode' — using default voice"
+                }
+            }
+        }
+        val id = "utt${System.nanoTime()}"
+        activeUtterances.add(id)
+        engine.speak(text, TextToSpeech.QUEUE_ADD, null, id)
+    }
+
+    private fun utteranceDone(utteranceId: String?) {
+        activeUtterances.remove(utteranceId.orEmpty())
+        if (activeUtterances.isEmpty() && live && pendingRestart) {
+            pendingRestart = false
+            runOnUiThread { startListening() }
+        }
+    }
+
+    // ---------- Permissions ----------
+
+    private fun maybeStart() {
+        val granted = checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) ==
+            android.content.pm.PackageManager.PERMISSION_GRANTED
+        if (granted) {
+            startConversation()
+        } else {
+            requestPermissions(arrayOf(android.Manifest.permission.RECORD_AUDIO), REQ_MIC)
+        }
+    }
+
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray,
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == REQ_MIC) {
+            if (grantResults.firstOrNull() == android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                startConversation()
+            } else {
+                status.text = "Microphone permission is required for conversation mode"
+            }
+        }
+    }
+
     private fun stopConversation() {
+        live = false
+        pendingRestart = false
+        activeUtterances.clear()
+        tts?.stop()
         recognizer?.destroy(); recognizer = null
         translatorMe?.close(); translatorMe = null
         translatorThem?.close(); translatorThem = null
@@ -219,6 +338,9 @@ class ConversationActivity : Activity() {
     }
 
     override fun onDestroy() {
+        live = false
+        tts?.stop()
+        tts?.shutdown()
         recognizer?.destroy()
         translatorMe?.close()
         translatorThem?.close()
