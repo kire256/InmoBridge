@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  body { margin: 0; background: #000; font-family: Roboto, "Segoe UI", sans-serif; display: flex; padding: 24px; }
+  .phone { width: 380px; height: 800px; background: #000; border-radius: 28px; border: 2px solid #222;
+           display: flex; flex-direction: column; overflow: hidden; }
+  .header { display: flex; align-items: center; justify-content: space-between; padding: 24px 20px 8px 20px; }
+  .title { color: #fff; font-size: 26px; font-weight: 800; }
+  .ver { color: #9AA0A6; font-size: 11px; background: rgba(255,255,255,.13); border-radius: 999px; padding: 4px 10px; }
+  .sheet { flex: 1; padding: 10px 20px; }
+  .hint { color: #9AA0A6; font-size: 12.5px; line-height: 1.5; }
+  .tabs { display: flex; margin: 14px 0 8px 0; border-bottom: 1px solid #222; }
+  .tab { flex: 1; text-align: center; font-size: 14px; color: #9AA0A6; padding: 8px 0; }
+  .tab.on { color: #39D2C0; font-weight: 700; border-bottom: 2px solid #39D2C0; }
+  .editor { background: #141414; border-radius: 12px; min-height: 190px; padding: 14px;
+            color: #E8EAED; font-size: 14px; line-height: 1.7; }
+  .editor .cursor { display: inline-block; width: 2px; height: 16px; background: #39D2C0; vertical-align: middle; }
+  .slider-label { color: #E8EAED; font-size: 13px; padding: 16px 0 6px 0; }
+  .track { position: relative; height: 4px; background: #333; border-radius: 2px; margin: 10px 0 2px 0; }
+  .fill { position: absolute; left: 0; top: 0; bottom: 0; width: 50%; background: #39D2C0; border-radius: 2px; }
+  .knob { position: absolute; left: 50%; top: 50%; transform: translate(-50%,-50%); width: 18px; height: 18px;
+          background: #39D2C0; border-radius: 50%; }
+  .status { color: #9AA0A6; font-size: 12.5px; padding: 8px 0 14px 0; }
+  .send { background: #232323; color: #fff; text-align: center; border-radius: 12px; padding: 14px;
+          font-size: 15px; font-weight: 600; }
+</style>
+</head>
+<body>
+
+<div class="phone">
+  <div class="header"><div class="title">Teleprompter</div><div class="ver">v0.6.0-rayneo-tabs</div></div>
+  <div class="sheet">
+    <div class="hint">Glasses show one line at a time and auto-advance. Swipe LEFT/UP = back, RIGHT/DOWN = next, BACK = exit.</div>
+    <div class="tabs">
+      <div class="tab on">Manual</div>
+      <div class="tab">Clipboard</div>
+      <div class="tab">Documents</div>
+    </div>
+    <div class="editor">Welcome everyone, and thanks for joining.<br>
+Today we're shipping three new features.<br>
+First — the teleprompter you're reading right now.<br>
+It scrolls automatically while you speak.<br>
+Second — turn-by-turn directions, mirrored<span class="cursor"></span></div>
+    <div class="slider-label">Auto-scroll: 1× (2500 ms/line)</div>
+    <div class="track"><div class="fill"></div><div class="knob"></div></div>
+    <div class="status">86 words · ≈0 min at 1×</div>
+    <div class="send">Send to glasses</div>
+  </div>
+</div>
+
+</body>
+</html>

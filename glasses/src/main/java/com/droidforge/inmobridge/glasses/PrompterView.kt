@@ -4,6 +4,8 @@ import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
+import android.os.Handler
+import android.os.Looper
 import android.text.Layout
 import android.text.StaticLayout
 import android.text.TextPaint
@@ -26,10 +28,42 @@ class PrompterView @JvmOverloads constructor(
         set(value) { field = value; index = 0.coerceAtMost(value.lastIndex.coerceAtLeast(0)); invalidate() }
 
     var index: Int = 0
-        set(value) { field = value.coerceIn(0, max(0, lines.lastIndex)); invalidate() }
+        set(value) {
+            field = value.coerceIn(0, max(0, lines.lastIndex))
+            if (field != value) scheduleNext() // any move resets the auto clock
+            invalidate()
+        }
 
     var active: Boolean = false
-        set(value) { field = value; invalidate() }
+        set(value) {
+            field = value
+            if (value) scheduleNext() else handler.removeCallbacks(advanceRun)
+            invalidate()
+        }
+
+    private val handler = Handler(Looper.getMainLooper())
+    private var lineMs = 0L
+
+    /** Enable timed auto-advance (ms per line); 0 disables. Resets the timer. */
+    fun setAutoAdvance(ms: Long) {
+        lineMs = ms.coerceAtLeast(0)
+        scheduleNext()
+    }
+
+    private val advanceRun = Runnable {
+        if (!active || lineMs <= 0L) return@Runnable
+        if (index < lines.lastIndex) {
+            index++ // setter reschedules
+        }
+        // At the last line: hold (reader finishes at their pace).
+    }
+
+    private fun scheduleNext() {
+        handler.removeCallbacks(advanceRun)
+        if (active && lineMs > 0L && index < lines.lastIndex) {
+            handler.postDelayed(advanceRun, lineMs)
+        }
+    }
 
     private val bgPaint = Paint().apply { color = Color.BLACK }
     private val progressPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {

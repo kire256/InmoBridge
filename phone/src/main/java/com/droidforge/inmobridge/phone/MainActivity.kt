@@ -90,6 +90,15 @@ class MainActivity : Activity() {
         startForegroundService(Intent(this, BridgeService::class.java))
     }
 
+    /** Completes the teleprompter document picker. */
+    @Deprecated("Deprecated in Java")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == ToolsDialogs.REQ_DOC && resultCode == RESULT_OK) {
+            data?.data?.let { ToolsDialogs.loadDocument(this, it) }
+        }
+    }
+
     // ---------------- Tabs ----------------
 
     private fun makeTab(id: String, label: String): TextView {

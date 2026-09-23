@@ -28,23 +28,101 @@ object ToolsDialogs {
         Toast.makeText(ctx, "Glasses not connected — start the bridge + pair first", Toast.LENGTH_LONG).show()
     }
 
-    /** Teleprompter: multiline script -> fullscreen prompter on the glasses. */
+    /**
+     * Teleprompter: source tabs (Manual / Clipboard / Documents), auto-scroll
+     * speed slider, send with lineMs>0 for timed auto-advance on the glasses.
+     */
     fun teleprompter(ctx: Activity) {
         val pad = dp(ctx, 20f)
         val input = EditText(ctx).apply {
             hint = "One line per cue…"
-            minLines = 6
+            minLines = 5
             gravity = Gravity.TOP
             setSingleLine(false)
         }
+        val status = TextView(ctx).apply {
+            textSize = 13f
+            setTextColor(0xFF9AA0A6.toInt())
+        }
+        val speedName = TextView(ctx).apply {
+            textSize = 13f
+            setPadding(0, dp(ctx, 10f), 0, 0)
+        }
+        val speedSeek = android.widget.SeekBar(ctx).apply {
+            max = SPEEDS.size - 1
+            progress = 2
+        }
+
+        fun words() = input.text.toString().split(Regex("\\s+")).count { it.isNotBlank() }
+        fun refresh() {
+            val n = words()
+            status.text = if (n == 0) "Load a script, then pick a speed."
+            else "$n words · ≈${estimateSeconds(n, speedSeek.progress) / 60} min at ${SPEED_NAMES[speedSeek.progress]}"
+        }
+        speedSeek.setOnSeekBarChangeListener(object : android.widget.SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(sb: android.widget.SeekBar?, p: Int, fromUser: Boolean) {
+                speedName.text = "Auto-scroll: ${SPEED_NAMES[p]} (${SPEEDS[p]} ms/line)"
+                refresh()
+            }
+            override fun onStartTrackingTouch(sb: android.widget.SeekBar?) {}
+            override fun onStopTrackingTouch(sb: android.widget.SeekBar?) {}
+        })
+        speedName.text = "Auto-scroll: ${SPEED_NAMES[2]} (${SPEEDS[2]} ms/line)"
+
+        val tabs = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL }
+        fun tab(label: String, active: Boolean, action: () -> Unit): TextView =
+            TextView(ctx).apply {
+                text = label
+                textSize = 14f
+                setTextColor(if (active) 0xFF39D2C0.toInt() else 0xFF9AA0A6.toInt())
+                setPadding(dp(ctx, 14f), dp(ctx, 8f), dp(ctx, 14f), dp(ctx, 8f))
+                layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+                setOnClickListener {
+                    (parent as? ViewGroup)?.let { g ->
+                        for (i in 0 until g.childCount) {
+                            val c = g.getChildAt(i) as? TextView ?: continue
+                            c.setTextColor(if (c === this) 0xFF39D2C0.toInt() else 0xFF9AA0A6.toInt())
+                        }
+                    }
+                    action()
+                }
+            }
+        tabs.addView(tab("Manual", true) { })
+        tabs.addView(tab("Clipboard", false) {
+            val cm = ctx.getSystemService(android.content.Context.CLIPBOARD_SERVICE)
+                as android.content.ClipboardManager
+            val text = cm.primaryClip?.getItemAt(0)?.coerceToText(ctx)?.toString().orEmpty()
+            if (text.isBlank()) {
+                Toast.makeText(ctx, "Clipboard is empty", Toast.LENGTH_SHORT).show()
+            } else {
+                input.setText(text)
+                refresh()
+            }
+        })
+        tabs.addView(tab("Documents", false) {
+            docTarget = input
+            docRefresh = { refresh() }
+            ctx.startActivityForResult(
+                Intent(Intent.ACTION_OPEN_DOCUMENT)
+                    .addCategory(Intent.CATEGORY_OPENABLE)
+                    .setType("*/*"),
+                REQ_DOC,
+            )
+        })
+
         val box = LinearLayout(ctx).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(pad, dp(ctx, 8f), pad, 0)
             addView(TextView(ctx).apply {
-                text = "Each line becomes a slide on the glasses.\nSwipe LEFT/UP = previous, RIGHT/DOWN = next, BACK = exit."
+                text = "Glasses show one line at a time and auto-advance. Swipe LEFT/UP = back, RIGHT/DOWN = next, BACK = exit."
             })
+            addView(tabs)
             addView(input, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+            addView(speedName)
+            addView(speedSeek)
+            addView(status)
         }
+
         AlertDialog.Builder(ctx)
             .setTitle("Teleprompter")
             .setView(box)
@@ -52,15 +130,41 @@ object ToolsDialogs {
                 val lines = input.text.toString().lines().map { it.trim() }.filter { it.isNotEmpty() }
                 if (lines.isEmpty()) {
                     Toast.makeText(ctx, "Script is empty", Toast.LENGTH_SHORT).show()
-                } else if (!push(BridgeMessage.prompter(lines, System.nanoTime()))) {
+                } else if (!push(BridgeMessage.prompter(lines, System.nanoTime(), SPEEDS[speedSeek.progress].toLong()))) {
                     noBridge(ctx)
                 } else {
-                    Toast.makeText(ctx, "Prompter live on glasses", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(ctx, "Prompter live — auto-scroll ${SPEED_NAMES[speedSeek.progress]}", Toast.LENGTH_SHORT).show()
                 }
             }
             .setNegativeButton("Cancel", null)
             .show()
     }
+
+    /** Document-picker handoff (MainActivity completes the activity result). */
+    var docTarget: EditText? = null
+    var docRefresh: (() -> Unit)? = null
+    const val REQ_DOC = 7701
+
+    /** Load a text document Uri into the teleprompter editor. */
+    fun loadDocument(ctx: Activity, uri: Uri) {
+        val target = docTarget ?: return
+        val text = runCatching {
+            ctx.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() }
+        }.getOrNull()
+        if (text == null) {
+            Toast.makeText(ctx, "Couldn't read that file", Toast.LENGTH_SHORT).show()
+        } else {
+            target.setText(text)
+            docRefresh?.invoke()
+        }
+    }
+
+    val SPEEDS = intArrayOf(1500, 2500, 3500, 5000, 7000)
+    val SPEED_NAMES = arrayOf("0.7×", "1×", "1.4×", "2×", "2.8×")
+
+    /** Rough duration: ~150 wpm at 1×, scaled by the speed slot. */
+    fun estimateSeconds(words: Int, speedIdx: Int): Int =
+        (words * intArrayOf(560, 400, 290, 200, 145)[speedIdx]) / 1000
 
     /** Translate: on-device ML Kit -> result -> push to glasses HUD. */
     fun translate(ctx: Activity) {

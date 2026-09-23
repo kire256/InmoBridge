@@ -268,9 +268,11 @@ class LauncherActivity : AppCompatActivity() {
                 val arr = env.payload.optJSONArray("lines")
                 val ls = ArrayList<String>(arr?.length() ?: 0)
                 if (arr != null) for (i in 0 until arr.length()) ls.add(arr.getString(i))
+                val lineMs = env.payload.optLong("lineMs", 0L)
                 runOnUiThread {
                     prompter.lines = ls
                     prompter.index = 0
+                    prompter.setAutoAdvance(lineMs)
                     prompter.active = ls.isNotEmpty()
                     prompter.visibility =
                         if (ls.isEmpty()) android.view.View.GONE else android.view.View.VISIBLE

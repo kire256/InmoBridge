@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  body { margin: 0; background: #000; font-family: Roboto, "Segoe UI", sans-serif; display: flex; gap: 24px; padding: 24px; }
+  .phone { width: 380px; height: 800px; background: #000; border-radius: 28px; border: 2px solid #222;
+           display: flex; flex-direction: column; overflow: hidden; position: relative; }
+  .header { display: flex; align-items: center; justify-content: space-between; padding: 24px 20px 12px 20px; }
+  .title { color: #fff; font-size: 30px; font-weight: 800; }
+  .ver { color: #9AA0A6; font-size: 11px; background: rgba(255,255,255,.13); border-radius: 999px; padding: 4px 10px; }
+  .chips { display: flex; gap: 8px; padding: 4px 20px 12px 20px; }
+  .chip { font-size: 12px; border-radius: 999px; padding: 6px 12px; background: #141414; }
+  .teal { color: #39D2C0; } .grey { color: #9AA0A6; }
+  .content { flex: 1; padding: 4px 20px; }
+  .card { background: #141414; border-radius: 18px; padding: 16px; margin: 8px 0; }
+  .cap { color: #9AA0A6; font-size: 12.5px; line-height: 1.5; padding-bottom: 8px; }
+  .btn { display: block; width: 100%; box-sizing: border-box; text-align: center; color: #fff;
+         background: #232323; border-radius: 12px; padding: 12px; font-size: 14px; margin-top: 6px; }
+  .tabs { display: flex; background: #141414; border-radius: 28px; margin: 10px 12px 14px 12px; padding: 8px 6px; }
+  .tab { flex: 1; text-align: center; font-size: 13px; color: #8A8F98; padding: 8px 0; }
+  .tab.on { color: #fff; font-weight: 700; }
+  h2 { color: #fff; font-size: 24px; font-weight: 800; margin: 6px 0 2px 0; }
+  .grid { display: flex; flex-wrap: wrap; gap: 10px; }
+  .tool { width: calc(50% - 5px); box-sizing: border-box; background: #141414; border-radius: 18px; padding: 14px; }
+  .tool .ic { font-size: 26px; }
+  .tool .t { color: #fff; font-weight: 700; font-size: 15px; padding-top: 6px; }
+  .tool .s { color: #9AA0A6; font-size: 11.5px; padding-top: 2px; }
+  .label { color: #555; font-size: 11px; text-align: center; padding-top: 8px; letter-spacing: 1px; }
+</style>
+</head>
+<body>
+
+<!-- GLASSES TAB -->
+<div class="phone">
+  <div class="header"><div class="title">InmoBridge</div><div class="ver">v0.6.0-rayneo-tabs-debug</div></div>
+  <div class="chips"><div class="chip teal">● bridge running</div><div class="chip grey">✦ 8f3a2c…</div></div>
+  <div class="content">
+    <h2>Glasses</h2>
+    <div class="cap">INMO Air 3 · tethered HUD</div>
+    <div class="card">
+      <div class="cap">Pair a new pair of glasses: the glasses app scans this code.</div>
+      <div class="btn">Pair glasses (show QR)</div>
+    </div>
+  </div>
+  <div class="tabs"><div class="tab on">Glasses</div><div class="tab">Tools</div><div class="tab">AI</div><div class="tab">Me</div></div>
+</div>
+
+<!-- TOOLS TAB -->
+<div class="phone">
+  <div class="header"><div class="title">InmoBridge</div><div class="ver">v0.6.0-rayneo-tabs-debug</div></div>
+  <div class="content">
+    <h2>Tools</h2>
+    <div class="cap">Send straight to the glasses HUD</div>
+    <div class="grid">
+      <div class="tool"><div class="ic" style="color:#6C4DE8">▶</div><div class="t">Teleprompter</div><div class="s">Scroll your script</div></div>
+      <div class="tool"><div class="ic" style="color:#2E7CF6">⌘</div><div class="t">Navigate</div><div class="s">Maps + HUD mirror</div></div>
+      <div class="tool"><div class="ic" style="color:#22A85C">文</div><div class="t">Translate</div><div class="s">12 languages, on-device</div></div>
+      <div class="tool"><div class="ic" style="color:#E8A03C">▦</div><div class="t">Layout</div><div class="s">Edit glasses dock</div></div>
+    </div>
+    <div class="card" style="margin-top:12px">
+      <div class="cap">Touchpad: swipes drive the teleprompter and the launcher; tap selects.</div>
+    </div>
+  </div>
+  <div class="tabs"><div class="tab">Glasses</div><div class="tab on">Tools</div><div class="tab">AI</div><div class="tab">Me</div></div>
+</div>
+
+</body>
+</html>

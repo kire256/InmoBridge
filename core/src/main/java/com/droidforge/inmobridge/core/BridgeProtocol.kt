@@ -85,9 +85,10 @@ object BridgeMessage {
     fun event(name: String, data: JSONObject = JSONObject(), id: Long): Envelope =
         Envelope(id, TYPE_EVENT, JSONObject().put("name", name).put("data", data))
 
-    /** Phone → glasses: load the teleprompter script (lines). */
-    fun prompter(lines: List<String>, id: Long): Envelope =
-        Envelope(id, TYPE_PROMPTER, JSONObject().put("lines", JSONArray(lines)))
+    /** Phone → glasses: load the teleprompter script (lines). lineMs>0 = auto-advance. */
+    fun prompter(lines: List<String>, id: Long, lineMs: Long = 0L): Envelope =
+        Envelope(id, TYPE_PROMPTER,
+            JSONObject().put("lines", JSONArray(lines)).put("lineMs", lineMs))
 
     /** Phone → glasses: navigation state (maneuver text + distance). */
     fun nav(text: String, distance: String = "", id: Long): Envelope =
