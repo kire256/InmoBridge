@@ -15,8 +15,8 @@ android {
         applicationId = "com.droidforge.inmobridge.glasses"
         minSdk = 26
         targetSdk = 35
-        versionCode = 6
-        versionName = "0.6.0-categories-status"
+        versionCode = 7
+        versionName = "1.0.0-notif-relay"
     }
 
     buildTypes {

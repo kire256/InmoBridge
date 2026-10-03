@@ -13,11 +13,7 @@ import com.droidforge.inmobridge.core.QrPayload
 import com.google.zxing.BarcodeFormat
 import com.google.zxing.qrcode.QRCodeWriter
 
-/**
- * Shows the pairing QR: selected address + port + token. Tapping an address
- * row regenerates the code. Also displays the raw payload for manual entry
- * on the glasses.
- */
+/** Shows the pairing QR: selected address + port + token, plus raw payload. */
 class PairingActivity : Activity() {
 
     private lateinit var qrImage: ImageView
@@ -30,16 +26,12 @@ class PairingActivity : Activity() {
             orientation = LinearLayout.VERTICAL
             setPadding(pad, pad, pad, pad)
         }
-
-        root.addView(TextView(this).apply {
-            text = "Pair glasses"
-            textSize = 22f
-        })
+        root.addView(TextView(this).apply { text = "Pair glasses"; textSize = 22f })
 
         val addrs = PairingManager.addresses()
         if (addrs.isEmpty()) {
             root.addView(TextView(this).apply {
-                text = "No network addresses — connect Wi-Fi or Tailscale first."
+                text = "No network addresses - connect Wi-Fi or Tailscale first."
             })
         }
         var selected = addrs.firstOrNull()
@@ -47,20 +39,15 @@ class PairingActivity : Activity() {
         val addrList = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         addrs.forEach { a ->
             addrList.addView(Button(this).apply {
-                text = "${a.name}\\n${a.host}  (tap to select)"
+                text = "${a.name}\n${a.host}  (tap to select)"
                 isAllCaps = false
-                setOnClickListener {
-                    selected = a
-                    render(selected)
-                }
+                setOnClickListener { selected = a; render(selected) }
             })
         }
         root.addView(addrList)
 
         qrImage = ImageView(this).apply {
-            layoutParams = LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, 720
-            )
+            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 720)
         }
         root.addView(qrImage)
 
@@ -73,20 +60,16 @@ class PairingActivity : Activity() {
 
     private fun render(addr: PairingManager.Addr?) {
         if (addr == null) return
-        val payload = QrPayload.encode(addr.host, BridgeService.PORT, PairingManager.token(this), "Erik phone")
+        val payload = QrPayload.encode(addr.host, BridgeService.PORT, PairingManager.token(this), "phone")
         qrImage.setImageBitmap(encodeQr(payload))
-        payloadText.text = "Payload:\\n$payload"
+        payloadText.text = "Payload:\n$payload"
     }
 
     private fun encodeQr(content: String): Bitmap {
-        val matrix = QRCodeWriter().encode(
-            content, BarcodeFormat.QR_CODE, 720, 720
-        )
+        val matrix = QRCodeWriter().encode(content, BarcodeFormat.QR_CODE, 720, 720)
         val bmp = Bitmap.createBitmap(720, 720, Bitmap.Config.RGB_565)
-        for (x in 0 until 720) {
-            for (y in 0 until 720) {
-                bmp.setPixel(x, y, if (matrix[x, y]) Color.BLACK else Color.WHITE)
-            }
+        for (x in 0 until 720) for (y in 0 until 720) {
+            bmp.setPixel(x, y, if (matrix[x, y]) Color.BLACK else Color.WHITE)
         }
         return bmp
     }

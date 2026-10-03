@@ -1,9 +1,7 @@
 package com.droidforge.inmobridge.phone
 
 import com.droidforge.inmobridge.core.BridgeMessage
-import com.droidforge.inmobridge.core.CardSpec
 import com.droidforge.inmobridge.core.Envelope
-import com.droidforge.inmobridge.core.IntentRouter
 import java.io.BufferedReader
 import java.io.InputStreamReader
 import java.io.OutputStreamWriter
@@ -13,23 +11,25 @@ import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.concurrent.thread
 
 /**
- * Phone-side bridge: foreground service component that owns a TCP server
- * (port 8899) and routes intents. One glasses client at a time (v0); the last
- * connection wins.
+ * Phone-side bridge: TCP server (port 8899) owning the glasses connection.
+ * One client at a time; the last authenticated connection wins.
+ * Token auth happens on the first hello; anything else is rejected.
  */
 class BridgeServer(
     private val port: Int = 8899,
-    private val router: CommandRouter,
     private val onClientConnected: ((BridgeServer) -> Unit)? = null,
-    /** Non-null → glasses must present this token in their hello envelope. */
     private val expectedToken: String? = null,
 ) {
     private val running = AtomicBoolean(false)
     private var serverSocket: ServerSocket? = null
 
-    /** Currently connected glasses writer (null until hello). */
     @Volatile
     private var clientWriter: OutputStreamWriter? = null
+
+    /** True while a token-authenticated glasses client is attached. */
+    @Volatile
+    var hasClient: Boolean = false
+        private set
 
     fun start() {
         if (!running.compareAndSet(false, true)) return
@@ -51,6 +51,7 @@ class BridgeServer(
         running.set(false)
         runCatching { serverSocket?.close() }
         clientWriter = null
+        hasClient = false
     }
 
     private fun handle(s: Socket) {
@@ -59,7 +60,7 @@ class BridgeServer(
             val reader = BufferedReader(InputStreamReader(s.getInputStream(), Charsets.UTF_8))
             var authenticated = expectedToken == null
             val w = OutputStreamWriter(s.getOutputStream(), Charsets.UTF_8)
-            if (authenticated) clientWriter = w
+            if (authenticated) attach(w)
             while (running.get()) {
                 val line = reader.readLine() ?: break
                 val env = Envelope.decode(line) ?: continue
@@ -68,29 +69,39 @@ class BridgeServer(
                         env.payload.optString("token") == expectedToken
                     ) {
                         authenticated = true
-                        clientWriter = w
-                        onClientConnected?.invoke(this)  // pushes config etc.
+                        attach(w)
+                        onClientConnected?.invoke(this)
                     } else {
                         runCatching {
-                            synchronized(w) { w.write(BridgeMessage.reject("bad token", env.id).encode() + "\n"); w.flush() }
+                            synchronized(w) {
+                                w.write(BridgeMessage.reject("bad token", env.id).encode() + "\n")
+                                w.flush()
+                            }
                         }
                         break
                     }
                     continue
                 }
-                when (env.type) {
-                    BridgeMessage.TYPE_INTENT -> router.handle(env) { reply -> send(reply) }
-                    else -> Unit
-                }
+                // Glasses->phone messages (events) are logged and dropped for MVP.
             }
         } catch (_: Exception) {
         } finally {
             runCatching { s.close() }
-            clientWriter = null
+            if (clientWriter === writerOf(s)) {
+                clientWriter = null
+                hasClient = false
+            }
         }
     }
 
-    /** Push a message to the glasses (config updates, async replies). */
+    private var currentSocket: Socket? = null
+    private fun attach(w: OutputStreamWriter) {
+        clientWriter = w
+        hasClient = true
+    }
+    private fun writerOf(s: Socket): OutputStreamWriter? = clientWriter // single-client v0
+
+    /** Push a message to the glasses (notif/config). */
     fun send(env: Envelope) {
         val w = clientWriter ?: return
         thread(isDaemon = true) {

@@ -2,9 +2,13 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.CAMERA" />
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <uses-permission android:name="android.permission.VIBRATE" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-feature android:name="android.hardware.camera" android:required="false" />
 
-    <!-- Apps tab: enumerate launchable apps (package visibility, Android 11+). -->
     <queries>
         <intent>
             <action android:name="android.intent.action.MAIN" />
@@ -13,20 +17,20 @@
     </queries>
 
     <application
-        android:label="InmoBridge Launcher"
+        android:label="InmoBridge Relay"
         android:theme="@style/LauncherTheme">
-        <activity android:name=".PairingActivity" android:exported="false" />
         <activity
-            android:name=".LauncherActivity"
-            android:exported="true"
-            android:launchMode="singleTask"
-            android:screenOrientation="landscape">
+            android:name=".MainActivity"
+            android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
-                <category android:name="android.intent.category.HOME" />
-                <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
         </activity>
+        <activity android:name=".PairingActivity" android:exported="false" />
+        <service
+            android:name=".BridgeClientService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
     </application>
 </manifest>
