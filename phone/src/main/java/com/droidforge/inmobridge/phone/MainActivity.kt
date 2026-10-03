@@ -87,6 +87,16 @@ class MainActivity : Activity() {
         root.addView(tabsBar)
 
         setContentView(root)
+
+        // targetSdk 35 = edge-to-edge: keep the tab bar clear of the nav bar
+        if (android.os.Build.VERSION.SDK_INT >= 30) {
+            root.setOnApplyWindowInsetsListener { v, insets ->
+                val bars = insets.getInsets(android.view.WindowInsets.Type.systemBars())
+                v.setPadding(bars.left, bars.top, bars.right, bars.bottom)
+                insets
+            }
+        }
+
         selectTab("glasses")
         startForegroundService(Intent(this, BridgeService::class.java))
     }

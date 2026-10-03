@@ -62,7 +62,11 @@ class BridgeClient(
                             BridgeState.set(BridgeState.REJECTED)
                             break // stale token won't fix itself; re-pairing relaunches
                         }
-                        onEnvelope(env)
+                        try {
+                            onEnvelope(env)
+                        } catch (e: Exception) {
+                            android.util.Log.e("BridgeClient", "envelope handler failed for ${env.type}", e)
+                        }
                     }
                 } catch (_: Exception) {
                     // reconnect loop

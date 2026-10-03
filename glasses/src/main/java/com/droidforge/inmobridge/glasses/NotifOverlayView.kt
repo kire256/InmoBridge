@@ -7,6 +7,8 @@ import android.graphics.Paint
 import android.text.Layout
 import android.text.StaticLayout
 import android.text.TextPaint
+import android.os.Handler
+import android.os.Looper
 import android.util.AttributeSet
 import android.view.View
 import com.droidforge.inmobridge.core.NotifSpec
@@ -47,15 +49,18 @@ class NotifOverlayView @JvmOverloads constructor(
     private val ticker = Runnable {
         if (System.currentTimeMillis() >= showUntil) {
             spec = null
+            visibility = android.view.View.GONE
             invalidate()
         } else {
             keepAlive()
         }
     }
 
+    private val mainHandler = Handler(Looper.getMainLooper())
+
     private fun keepAlive() {
-        handler.removeCallbacks(ticker)
-        spec?.let { handler.postDelayed(ticker, 250) }
+        mainHandler.removeCallbacks(ticker)
+        spec?.let { mainHandler.postDelayed(ticker, 250) }
     }
 
     override fun onDraw(canvas: Canvas) {

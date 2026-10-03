@@ -72,6 +72,7 @@ object NotifOverlay {
                 runCatching { wm.addView(v, params); windowAdded = true }
                     .onFailure { return@post }
             }
+            v.visibility = android.view.View.VISIBLE
             v.show(spec)
         }
         wakeScreen(spec.timeoutMs)
