@@ -294,18 +294,20 @@ class MainActivity : Activity() {
 
     private fun buildApps(page: LinearLayout) {
         page.addView(title("Apps"))
-        page.addView(caption("Choose which apps mirror to the glasses"))
+        page.addView(caption("Which apps mirror to the glasses.  • = has posted notifications"))
 
         val pm = packageManager
         val launchables = pm.queryIntentActivities(
             android.content.Intent(android.content.Intent.ACTION_MAIN)
                 .addCategory(android.content.Intent.CATEGORY_LAUNCHER), 0)
-        val apps = launchables.asSequence()
-            .filter { it.activityInfo.packageName != packageName }
-            .distinctBy { it.activityInfo.packageName }
-            .map { it.loadLabel(pm).toString() to it.activityInfo.packageName }
-            .sortedBy { it.first.lowercase() }
-            .toList()
+        val apps = com.droidforge.inmobridge.core.AppSources.merge(
+            launchables.asSequence()
+                .filter { it.activityInfo.packageName != packageName }
+                .distinctBy { it.activityInfo.packageName }
+                .map { it.loadLabel(pm).toString() to it.activityInfo.packageName }
+                .toList(),
+            NotifSources.observed(this).filter { it != packageName }.toSet(),
+        )
 
         // Default-on for common communication apps (first run)
         val defOn = listOf("whatsapp", "messages", "messaging", "telegram", "signal",
@@ -316,14 +318,15 @@ class MainActivity : Activity() {
             }
         }
 
-        apps.forEach { (label, pkg) ->
+        apps.forEach { entry ->
+            val (label, pkg) = entry.label to entry.pkg
             val row = LinearLayout(this).apply {
                 orientation = LinearLayout.HORIZONTAL
                 gravity = Gravity.CENTER_VERTICAL
                 setPadding(0, dp(6f), 0, dp(6f))
             }
             row.addView(TextView(this).apply {
-                text = label
+                text = if (entry.observed) "$label  •" else label
                 textSize = 15f
                 setTextColor(Color.WHITE)
                 layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)

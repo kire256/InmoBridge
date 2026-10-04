@@ -48,6 +48,7 @@ class RelayService : NotificationListenerService() {
         val n = sbn?.notification ?: return
         val pkg = sbn.packageName ?: return
         if (pkg == packageName) return                      // never mirror ourselves
+        NotifSources.observe(this, pkg)                     // feed the Apps-tab list
         if (!RelayConfig.relayEnabled(this)) return
         if (!RelayConfig.isAppAllowed(this, pkg)) return    // per-app allowlist
         if (replayGuard.remove(sbn.key)) return             // active-at-connect replay, not new
