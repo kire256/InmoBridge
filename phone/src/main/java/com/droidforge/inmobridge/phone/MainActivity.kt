@@ -211,6 +211,44 @@ class MainActivity : Activity() {
             if (listenerOk) 0xFF39D2C0.toInt() else 0xFFE8A03C.toInt()))
         page.addView(chipRow)
 
+        // Tools first - testing the relay is the primary action.
+        page.addView(card {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(16f), dp(16f), dp(16f), dp(16f))
+            addView(caption("Send a sample notification to the glasses:"))
+            addView(Button(this@MainActivity).apply {
+                text = "Send test notification"
+                isAllCaps = false
+                setOnClickListener {
+                    val ok = BridgeService.instance?.sendTestNotification() == true
+                    Toast.makeText(
+                        this@MainActivity,
+                        if (ok) "Sent - check the glasses" else "Glasses not connected",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
+            })
+            addView(caption("Install an APK on the glasses over the bridge:"))
+            addView(Button(this@MainActivity).apply {
+                text = "Pick APK to install…"
+                isAllCaps = false
+                setOnClickListener {
+                    val intent = android.content.Intent(android.content.Intent.ACTION_GET_CONTENT)
+                    intent.type = "application/vnd.android.package-archive"
+                    intent.addCategory(android.content.Intent.CATEGORY_OPENABLE)
+                    startActivityForResult(
+                        android.content.Intent.createChooser(intent, "Pick APK"), REQ_INSTALL
+                    )
+                }
+            })
+            addView(TextView(this@MainActivity).apply {
+                textSize = 13f
+                setTextColor(0xFF39D2C0.toInt())
+                setPadding(0, dp(4f), 0, 0)
+                installStatus = this
+            })
+        })
+
         page.addView(card {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(16f), dp(16f), dp(16f), dp(16f))
@@ -248,44 +286,6 @@ class MainActivity : Activity() {
                 Toast.makeText(this@MainActivity, if (checked) "Relay ON" else "Relay OFF", Toast.LENGTH_SHORT).show()
             }
             addView(sw)
-        })
-
-        // Tools: test notification + APK install
-        page.addView(card {
-            orientation = LinearLayout.VERTICAL
-            setPadding(dp(16f), dp(16f), dp(16f), dp(16f))
-            addView(caption("Send a sample notification to the glasses:"))
-            addView(Button(this@MainActivity).apply {
-                text = "Send test notification"
-                isAllCaps = false
-                setOnClickListener {
-                    val ok = BridgeService.instance?.sendTestNotification() == true
-                    Toast.makeText(
-                        this@MainActivity,
-                        if (ok) "Sent - check the glasses" else "Glasses not connected",
-                        Toast.LENGTH_SHORT
-                    ).show()
-                }
-            })
-            addView(caption("Install an APK on the glasses over the bridge:"))
-            addView(Button(this@MainActivity).apply {
-                text = "Pick APK to install…"
-                isAllCaps = false
-                setOnClickListener {
-                    val intent = android.content.Intent(android.content.Intent.ACTION_GET_CONTENT)
-                    intent.type = "application/vnd.android.package-archive"
-                    intent.addCategory(android.content.Intent.CATEGORY_OPENABLE)
-                    startActivityForResult(
-                        android.content.Intent.createChooser(intent, "Pick APK"), REQ_INSTALL
-                    )
-                }
-            })
-            addView(TextView(this@MainActivity).apply {
-                textSize = 13f
-                setTextColor(0xFF39D2C0.toInt())
-                setPadding(0, dp(4f), 0, 0)
-                installStatus = this
-            })
         })
     }
 
