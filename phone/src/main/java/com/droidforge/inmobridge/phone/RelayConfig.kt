@@ -49,6 +49,14 @@ object RelayConfig {
             .putLong("autoScrollMs", ms).apply()
     }
 
+    /** Duplicate-notification filter window (ms). 0 = off. Default 24h. */
+    fun dedupeWindowMs(ctx: Context): Long =
+        ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getLong("dedupeMs", 86_400_000L)
+
+    fun setDedupeWindowMs(ctx: Context, ms: Long) {
+        ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putLong("dedupeMs", ms).apply()
+    }
+
     /** Default per-type presentation. */
     fun defaultTypeRules(): Map<String, Triple<String, String, String>> = mapOf(
         MSG to Triple("teal", "ping", "tick"),

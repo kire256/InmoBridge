@@ -40,7 +40,9 @@ class RelayService : NotificationListenerService() {
         INSTANCE = null
     }
 
-    private val deduper = NotifDeduper()
+    private val deduper = NotifDeduper().also {
+        it.windowMs = RelayConfig.dedupeWindowMs(this)
+    }
 
     override fun onNotificationPosted(sbn: StatusBarNotification?) {
         val n = sbn?.notification ?: return
@@ -137,6 +139,11 @@ class RelayService : NotificationListenerService() {
 
         /** True when the user granted notification access. */
         fun isListenerConnected(): Boolean = connected
+
+        /** Live-update the duplicate filter window (ms, 0 = off). */
+        fun setDedupeWindow(ms: Long) {
+            INSTANCE?.deduper?.windowMs = ms
+        }
 
         /** Open the system notification-access settings. */
         fun openListenerSettings(ctx: Context) {

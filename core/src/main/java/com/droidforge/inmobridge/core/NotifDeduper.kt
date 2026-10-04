@@ -8,13 +8,14 @@ package com.droidforge.inmobridge.core
  * are dropped. New text on the same key still mirrors (chat threads grew).
  */
 class NotifDeduper(
-    private val windowMs: Long = 3_600_000L,
+    @Volatile var windowMs: Long = 86_400_000L, // default: 24h
     private val capacity: Int = 96,
 ) {
     private val seen = LinkedHashMap<String, Pair<Int, Long>>(32, 0.75f, true)
 
     @Synchronized
     fun shouldMirror(key: String, title: String, text: String, now: Long): Boolean {
+        if (windowMs <= 0) return true // filter off
         val h = 31 * title.hashCode() + text.hashCode()
         val prev = seen[key]
         return if (prev != null && prev.first == h && now - prev.second < windowMs) {

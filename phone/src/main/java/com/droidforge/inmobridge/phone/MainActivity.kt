@@ -384,6 +384,30 @@ class MainActivity : Activity() {
                 BridgeService.instance?.pushConfig()
             })
 
+            addView(caption("Repeat filter: same notification re-shown after…"))
+            val current = RelayConfig.dedupeWindowMs(this@MainActivity)
+            val options = listOf("Off" to 0L, "1 hour" to 3_600_000L, "24 hours" to 86_400_000L, "1 week" to 604_800_000L)
+            val dupRow = LinearLayout(this@MainActivity).apply { orientation = LinearLayout.HORIZONTAL }
+            options.forEach { (label, ms) ->
+                dupRow.addView(TextView(this@MainActivity).apply {
+                    text = label
+                    textSize = 13f
+                    setPadding(dp(10f), dp(6f), dp(10f), dp(6f))
+                    val on = current == ms
+                    background = pill(if (on) 0xFF39D2C0.toInt() else 0xFF141414.toInt(), 16f)
+                    setTextColor(if (on) Color.BLACK else Color.WHITE)
+                    setOnClickListener {
+                        RelayConfig.setDedupeWindowMs(this@MainActivity, ms)
+                        RelayService.setDedupeWindow(ms)
+                        selectTab("themes")
+                    }
+                    layoutParams = LinearLayout.LayoutParams(
+                        ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT
+                    ).also { it.setMargins(0, 0, dp(8f), dp(8f)) }
+                })
+            }
+            addView(dupRow)
+
             addView(caption("Cards auto-hide after ~6s. Changes apply to new notifications."))
         })
 

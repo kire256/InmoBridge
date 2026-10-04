@@ -89,13 +89,17 @@ class RelayProtocolTest {
 
     @Test
     fun `deduper suppresses identical reposts but allows new content`() {
-        val d = NotifDeduper(windowMs = 3_600_000)
+        val d = NotifDeduper(windowMs = 86_400_000L)
         val t0 = 1_000_000L
         assertTrue(d.shouldMirror("tg:1", "Telegram", "New login from Firefox", t0))
-        // Telegram re-posts the same alert later -> suppressed (within 1h window)
+        // Telegram re-posts the same alert 30 min later -> suppressed (24h window)
         assertTrue(!d.shouldMirror("tg:1", "Telegram", "New login from Firefox", t0 + 1_800_000))
         // same key, NEW content (chat grew) -> mirrors
         assertTrue(d.shouldMirror("tg:1", "Telegram", "New login from Firefox\nAlice: hi", t0 + 1_800_500))
+        // window off -> everything mirrors
+        val dOff = NotifDeduper(windowMs = 0)
+        assertTrue(dOff.shouldMirror("k", "a", "b", 0))
+        assertTrue(dOff.shouldMirror("k", "a", "b", 1))
         // after the window expires the identical alert mirrors again
         val d2 = NotifDeduper(windowMs = 60_000)
         assertTrue(d2.shouldMirror("k", "a", "b", 0))
