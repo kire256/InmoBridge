@@ -40,6 +40,11 @@ class GlassesTabTest {
         assertTrue("no ScrollView in hierarchy", scrolls.isNotEmpty())
         val content = scrolls[0]
         assertTrue("content column has no children", content.childCount > 0)
+        val lp = content.layoutParams as? android.widget.LinearLayout.LayoutParams
+        assertTrue(
+            "content column must fill parent width (zero-width bug), got width=${lp?.width}",
+            lp != null && (lp.width == ViewGroup.LayoutParams.MATCH_PARENT || lp.width > 0),
+        )
 
         val texts = ArrayList<String>()
         all.clear(); findAll(content, all)

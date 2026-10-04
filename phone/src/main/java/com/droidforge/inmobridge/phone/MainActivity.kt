@@ -88,7 +88,11 @@ class MainActivity : Activity() {
         })
         root.addView(header)
 
-        content = ScrollView(this).apply { layoutParams = LinearLayout.LayoutParams(0, 0, 1f) }
+        content = ScrollView(this).apply {
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f
+            )
+        }
         root.addView(content)
 
         tabsBar = LinearLayout(this).apply {
