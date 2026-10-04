@@ -21,10 +21,17 @@ class BridgeClientService : Service() {
     private val onEnvelope = { env: Envelope ->
         when (env.type) {
             BridgeMessage.TYPE_NOTIF -> NotifOverlay.onEnvelope(env)
+            BridgeMessage.TYPE_APK_BEGIN, BridgeMessage.TYPE_APK_CHUNK, BridgeMessage.TYPE_APK_END ->
+                ApkReceiver.onEnvelope(env, ::sendEvent)
             BridgeMessage.TYPE_CONFIG -> {
                 // config.enabled == false -> overlay could hide; MVP ignores.
             }
         }
+    }
+
+    /** Send an event envelope back to the phone. */
+    private fun sendEvent(env: Envelope) {
+        client?.send(env)
     }
 
     override fun onCreate() {
@@ -42,6 +49,7 @@ class BridgeClientService : Service() {
         startForeground(NOTIF_ID, notif)
 
         NotifOverlay.init(this)
+        ApkReceiver.AppHolder.ctx = this
 
         val pairing = PairingStore.load(this)
         val host = pairing?.host ?: "192.168.68.51"

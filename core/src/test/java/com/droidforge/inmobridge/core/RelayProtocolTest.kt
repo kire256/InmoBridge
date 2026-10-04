@@ -1,6 +1,7 @@
 package com.droidforge.inmobridge.core
 
 import org.json.JSONObject
+import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
@@ -56,6 +57,33 @@ class RelayProtocolTest {
         assertEquals("tok123", p.token)
         assertNull(QrPayload.decode("not json"))
         assertNull(QrPayload.decode(JSONObject().put("v", 99).toString()))
+    }
+
+    @Test
+    fun `apk envelopes round trip with binary payload`() {
+        val bytes = ByteArray(200_000) { (it % 251).toByte() }
+        val begin = BridgeMessage.apkBegin("test.apk", bytes.size.toLong(), 1)
+        val chunks = bytes.toList().chunked(48_000).map { it.toByteArray() }
+        val chunkEnvs = chunks.mapIndexed { i, c -> BridgeMessage.apkChunk(i, c, 2L + i) }
+        val end = BridgeMessage.apkEnd(chunks.size, 99)
+
+        val b = Envelope.decode(begin.encode())!!
+        assertEquals("apk_begin", b.type)
+        assertEquals(bytes.size.toLong(), b.payload.optLong("size"))
+
+        // decode every chunk line and reassemble
+        val out = ArrayList<Byte>()
+        chunkEnvs.forEach { env ->
+            val back = Envelope.decode(env.encode())!!
+            assertEquals("apk_chunk", back.type)
+            assertEquals(back.id, env.id)
+            val data = java.util.Base64.getDecoder().decode(back.payload.optString("b64"))
+            out.addAll(data.toList())
+        }
+        assertArrayEquals(bytes, out.toByteArray())
+
+        val e = Envelope.decode(end.encode())!!
+        assertEquals(chunks.size, e.payload.optInt("chunks"))
     }
 
     @Test

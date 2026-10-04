@@ -32,6 +32,34 @@ class MainActivity : Activity() {
     private lateinit var content: ScrollView
     private val tabViews = HashMap<String, TextView>()
     private var activeTab = "glasses"
+    private var installStatus: TextView? = null
+    private val eventSink = { env: com.droidforge.inmobridge.core.Envelope ->
+        if (env.type == "event") {
+            val name = env.payload.optString("name")
+            val data = env.payload.optJSONObject("data")
+            val line = when (name) {
+                "apk_started" -> "Upload started…"
+                "apk_progress" -> {
+                    val b = data?.optLong("bytes") ?: 0L
+                    val phase = data?.optString("phase").orEmpty()
+                    if (phase == "installing") "Installing on glasses…"
+                    else "Uploading: ${"%.1f".format(b / 1048576f)} MB"
+                }
+                "apk_result" ->
+                    if (data?.optBoolean("ok") == true) "✔ Installed on glasses"
+                    else if (data?.optBoolean("pending_user") == true)
+                        "Confirm the install prompt on the glasses"
+                    else "✖ Install failed: ${data?.optString("error").orEmpty()}"
+                else -> null
+            }
+            if (line != null) runOnUiThread {
+                installStatus?.text = line
+                if (name == "apk_result") {
+                    Toast.makeText(this, line, Toast.LENGTH_LONG).show()
+                }
+            }
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -88,6 +116,8 @@ class MainActivity : Activity() {
 
         setContentView(root)
 
+        BridgeService.addEventListener(eventSink)
+
         // targetSdk 35 = edge-to-edge: keep the tab bar clear of the nav bar
         if (android.os.Build.VERSION.SDK_INT >= 30) {
             root.setOnApplyWindowInsetsListener { v, insets ->
@@ -99,6 +129,50 @@ class MainActivity : Activity() {
 
         selectTab("glasses")
         startForegroundService(Intent(this, BridgeService::class.java))
+    }
+
+    override fun onDestroy() {
+        BridgeService.removeEventListener(eventSink)
+        super.onDestroy()
+    }
+
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == REQ_INSTALL && resultCode == RESULT_OK) {
+            val uri = data?.data
+            if (uri != null) installFromUri(uri)
+        }
+    }
+
+    private fun installFromUri(uri: android.net.Uri) {
+        val svc = BridgeService.instance
+        if (svc == null || !BridgeService.running) {
+            Toast.makeText(this, "Bridge service not running", Toast.LENGTH_SHORT).show()
+            return
+        }
+        Thread {
+            try {
+                val input = contentResolver.openInputStream(uri)
+                if (input == null) {
+                    runOnUiThread { Toast.makeText(this, "Cannot read that file", Toast.LENGTH_SHORT).show() }
+                    return@Thread
+                }
+                val display = uri.lastPathSegment ?: "app.apk"
+                val cacheFile = java.io.File(cacheDir, "upload_to_glasses.apk")
+                cacheFile.outputStream().use { out -> input.copyTo(out, 64 * 1024) }
+                input.close()
+                val ok = svc.sendApk(cacheFile, display)
+                runOnUiThread {
+                    if (!ok) Toast.makeText(this, "Glasses not connected", Toast.LENGTH_SHORT).show()
+                }
+            } catch (e: Exception) {
+                runOnUiThread { Toast.makeText(this, "Read failed: ${e.message}", Toast.LENGTH_SHORT).show() }
+            }
+        }.start()
+    }
+
+    companion object {
+        private const val REQ_INSTALL = 51
     }
 
     private fun selectTab(id: String) {
@@ -174,6 +248,44 @@ class MainActivity : Activity() {
                 Toast.makeText(this@MainActivity, if (checked) "Relay ON" else "Relay OFF", Toast.LENGTH_SHORT).show()
             }
             addView(sw)
+        })
+
+        // Tools: test notification + APK install
+        page.addView(card {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(16f), dp(16f), dp(16f), dp(16f))
+            addView(caption("Send a sample notification to the glasses:"))
+            addView(Button(this@MainActivity).apply {
+                text = "Send test notification"
+                isAllCaps = false
+                setOnClickListener {
+                    val ok = BridgeService.instance?.sendTestNotification() == true
+                    Toast.makeText(
+                        this@MainActivity,
+                        if (ok) "Sent - check the glasses" else "Glasses not connected",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
+            })
+            addView(caption("Install an APK on the glasses over the bridge:"))
+            addView(Button(this@MainActivity).apply {
+                text = "Pick APK to install…"
+                isAllCaps = false
+                setOnClickListener {
+                    val intent = android.content.Intent(android.content.Intent.ACTION_GET_CONTENT)
+                    intent.type = "application/vnd.android.package-archive"
+                    intent.addCategory(android.content.Intent.CATEGORY_OPENABLE)
+                    startActivityForResult(
+                        android.content.Intent.createChooser(intent, "Pick APK"), REQ_INSTALL
+                    )
+                }
+            })
+            addView(TextView(this@MainActivity).apply {
+                textSize = 13f
+                setTextColor(0xFF39D2C0.toInt())
+                setPadding(0, dp(4f), 0, 0)
+                installStatus = this
+            })
         })
     }
 

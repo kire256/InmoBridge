@@ -52,6 +52,24 @@ object BridgeMessage {
     const val TYPE_CONFIG = "config"
     const val TYPE_NOTIF = "notif"
     const val TYPE_EVENT = "event"
+    const val TYPE_APK_BEGIN = "apk_begin"
+    const val TYPE_APK_CHUNK = "apk_chunk"
+    const val TYPE_APK_END = "apk_end"
+
+    /** Start an APK transfer to the glasses (name is a display label). */
+    fun apkBegin(name: String, size: Long, id: Long): Envelope =
+        Envelope(id, TYPE_APK_BEGIN, JSONObject().put("name", name).put("size", size))
+
+    /** One 48KB-ish chunk, base64-encoded. */
+    fun apkChunk(index: Int, bytes: ByteArray, id: Long): Envelope = Envelope(
+        id, TYPE_APK_CHUNK,
+        JSONObject().put("index", index)
+            .put("b64", java.util.Base64.getEncoder().encodeToString(bytes)),
+    )
+
+    /** Finish transfer; glasses verify and install. */
+    fun apkEnd(chunks: Int, id: Long): Envelope =
+        Envelope(id, TYPE_APK_END, JSONObject().put("chunks", chunks))
 
     fun hello(side: String, deviceName: String, id: Long, token: String? = null): Envelope =
         Envelope(

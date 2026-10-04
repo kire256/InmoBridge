@@ -19,6 +19,7 @@ class BridgeServer(
     private val port: Int = 8899,
     private val onClientConnected: ((BridgeServer) -> Unit)? = null,
     private val expectedToken: String? = null,
+    private val onEvent: ((Envelope) -> Unit)? = null,
 ) {
     private val running = AtomicBoolean(false)
     private var serverSocket: ServerSocket? = null
@@ -82,7 +83,8 @@ class BridgeServer(
                     }
                     continue
                 }
-                // Glasses->phone messages (events) are logged and dropped for MVP.
+                // Glasses->phone messages (events) go to the service/UI.
+                onEvent?.invoke(env)
             }
         } catch (_: Exception) {
         } finally {
