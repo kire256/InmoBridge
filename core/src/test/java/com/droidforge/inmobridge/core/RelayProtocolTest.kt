@@ -5,6 +5,7 @@ import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class RelayProtocolTest {
@@ -84,6 +85,22 @@ class RelayProtocolTest {
 
         val e = Envelope.decode(end.encode())!!
         assertEquals(chunks.size, e.payload.optInt("chunks"))
+    }
+
+    @Test
+    fun `deduper suppresses identical reposts but allows new content`() {
+        val d = NotifDeduper(windowMs = 3_600_000)
+        val t0 = 1_000_000L
+        assertTrue(d.shouldMirror("tg:1", "Telegram", "New login from Firefox", t0))
+        // Telegram re-posts the same alert later -> suppressed (within 1h window)
+        assertTrue(!d.shouldMirror("tg:1", "Telegram", "New login from Firefox", t0 + 1_800_000))
+        // same key, NEW content (chat grew) -> mirrors
+        assertTrue(d.shouldMirror("tg:1", "Telegram", "New login from Firefox\nAlice: hi", t0 + 1_800_500))
+        // after the window expires the identical alert mirrors again
+        val d2 = NotifDeduper(windowMs = 60_000)
+        assertTrue(d2.shouldMirror("k", "a", "b", 0))
+        assertTrue(!d2.shouldMirror("k", "a", "b", 30_000))
+        assertTrue(d2.shouldMirror("k", "a", "b", 61_000))
     }
 
     @Test

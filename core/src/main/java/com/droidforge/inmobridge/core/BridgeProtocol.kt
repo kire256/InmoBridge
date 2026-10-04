@@ -82,10 +82,11 @@ object BridgeMessage {
     fun reject(reason: String, id: Long): Envelope =
         Envelope(id, TYPE_REJECT, JSONObject().put("reason", reason))
 
-    /** Display settings push: overlay timeout + master switch. */
-    fun config(timeoutMs: Long, enabled: Boolean, id: Long): Envelope = Envelope(
+    /** Display settings push: overlay timeout + master switch + text cap. */
+    fun config(timeoutMs: Long, enabled: Boolean, id: Long, maxLines: Int = 3, autoScrollMs: Long = 4000L): Envelope = Envelope(
         id, TYPE_CONFIG,
-        JSONObject().put("timeout", timeoutMs).put("enabled", enabled),
+        JSONObject().put("timeout", timeoutMs).put("enabled", enabled)
+            .put("maxLines", maxLines).put("autoScrollMs", autoScrollMs),
     )
 
     fun notif(spec: NotifSpec, id: Long): Envelope =

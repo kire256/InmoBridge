@@ -26,6 +26,10 @@ class NotifOverlayView @JvmOverloads constructor(
 
     private var spec: NotifSpec? = null
     private var showUntil: Long = 0
+    private var page = 0
+    private var pageCount = 1
+    private var fullText: String = ""
+    private var lastPageAt = 0L
 
     private val bgPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xF2101418.toInt() }
     private val accentPaint = Paint(Paint.ANTI_ALIAS_FLAG)
@@ -35,10 +39,13 @@ class NotifOverlayView @JvmOverloads constructor(
     }
     private val textPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFFE8EAED.toInt(); textSize = 32f }
 
-    /** Show a notification card; auto-hides after spec.timeoutMs. */
+    /** Show a notification card; pages long text, auto-hides after timeout. */
     fun show(s: NotifSpec) {
         spec = s
-        showUntil = System.currentTimeMillis() + s.timeoutMs
+        fullText = s.text
+        page = 0
+        lastPageAt = System.currentTimeMillis()
+        showUntil = lastPageAt + s.timeoutMs
         invalidate()
         keepAlive()
     }
@@ -47,13 +54,22 @@ class NotifOverlayView @JvmOverloads constructor(
         spec?.takeIf { System.currentTimeMillis() < showUntil }
 
     private val ticker = Runnable {
-        if (System.currentTimeMillis() >= showUntil) {
+        val s = spec ?: return@Runnable
+        val now = System.currentTimeMillis()
+        if (now >= showUntil) {
             spec = null
             visibility = android.view.View.GONE
             invalidate()
-        } else {
-            keepAlive()
+            return@Runnable
         }
+        // Auto-advance through pages of long text until the timeout wins.
+        val interval = NotifOverlay.autoScrollMs.takeIf { it > 0 }
+        if (pageCount > 1 && interval != null && now - lastPageAt >= interval) {
+            page = (page + 1).mod(pageCount)
+            lastPageAt = now
+            invalidate()
+        }
+        keepAlive()
     }
 
     private val mainHandler = Handler(Looper.getMainLooper())
@@ -82,7 +98,21 @@ class NotifOverlayView @JvmOverloads constructor(
         val textW = (cardW - 48f * d).toInt()
 
         val title = layout(s.title, titlePaint, textW)
-        val body = if (s.text.isBlank()) null else layout(s.text, textPaint, textW)
+        textPaint.textSize = 32f * d
+
+        // Paginate body text: each page holds at most NotifOverlay.maxLines lines.
+        val maxLines = NotifOverlay.maxLines.coerceAtLeast(1)
+        val bodyFull = layout(fullText.ifBlank { return }, textPaint, textW)
+        pageCount = bodyFull.lineCount.coerceAtLeast(1)
+        page = page.coerceIn(0, pageCount - 1)
+        val startLine = page * maxLines
+        val body = if (startLine < pageCount) {
+            val endLine = min(startLine + maxLines, pageCount)
+            val startOff = bodyFull.getLineStart(startLine)
+            val endOff = bodyFull.getLineEnd(endLine - 1)
+            val text = bodyFull.text.subSequence(startOff, endOff).trim().toString()
+            layout(text, textPaint, textW)
+        } else null
         val bodyH = body?.height?.toFloat() ?: 0f
         val cardH = 28f * d + 26f * d + title.height + bodyH + (if (body != null) 8f * d else 0f) + 28f * d
         val cardTop = h - cardH - 60f * d
@@ -96,7 +126,23 @@ class NotifOverlayView @JvmOverloads constructor(
         canvas.withTranslation(margin + 24f * d, y) { title.draw(this) }
         y += title.height + 8f * d
         body?.let { canvas.withTranslation(margin + 24f * d, y) { it.draw(this) } }
+
+        // Page dots when the text spans multiple pages.
+        if (pageCount > 1) {
+            val dot = 5f * d
+            val gap = 12f * d
+            val totalW = (pageCount * dot + (pageCount - 1) * gap)
+            var dx = margin + cardW - 24f * d - totalW
+            val dy = cardTop + cardH - 18f * d
+            for (i in 0 until pageCount) {
+                pageDotPaint.color = if (i == page) Color.WHITE else 0xFF5F6368.toInt()
+                canvas.drawCircle(dx + dot / 2, dy, dot / 2, pageDotPaint)
+                dx += dot + gap
+            }
+        }
     }
+
+    private val pageDotPaint = Paint(Paint.ANTI_ALIAS_FLAG)
 
     private fun layout(text: String, paint: TextPaint, width: Int): StaticLayout =
         StaticLayout.Builder.obtain(text, 0, text.length, paint, width.coerceAtLeast(50))

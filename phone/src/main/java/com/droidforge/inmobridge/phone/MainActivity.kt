@@ -283,13 +283,10 @@ class MainActivity : Activity() {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(16f), dp(16f), dp(16f), dp(16f))
             addView(caption("Relay notifications to the glasses"))
-            val sw = android.widget.Switch(this@MainActivity)
-            sw.isChecked = RelayConfig.relayEnabled(this@MainActivity)
-            sw.setOnCheckedChangeListener { _, checked ->
+            addView(switch(this@MainActivity, RelayConfig.relayEnabled(this@MainActivity)) { checked ->
                 RelayConfig.setRelayEnabled(this@MainActivity, checked)
                 Toast.makeText(this@MainActivity, if (checked) "Relay ON" else "Relay OFF", Toast.LENGTH_SHORT).show()
-            }
-            addView(sw)
+            })
         })
     }
 
@@ -331,11 +328,8 @@ class MainActivity : Activity() {
                 setTextColor(Color.WHITE)
                 layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
             })
-            row.addView(android.widget.Switch(this).apply {
-                isChecked = RelayConfig.isAppAllowed(this@MainActivity, pkg)
-                setOnCheckedChangeListener { _, checked ->
-                    RelayConfig.setAppAllowed(this@MainActivity, pkg, checked)
-                }
+            row.addView(switch(this@MainActivity, RelayConfig.isAppAllowed(this@MainActivity, pkg)) { checked ->
+                RelayConfig.setAppAllowed(this@MainActivity, pkg, checked)
             })
             page.addView(row)
         }
@@ -347,6 +341,51 @@ class MainActivity : Activity() {
     private fun buildThemes(page: LinearLayout) {
         page.addView(title("Themes"))
         page.addView(caption("Per notification type: card theme, sound, vibration"))
+
+        // Glasses display settings
+        page.addView(card {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(14f), dp(14f), dp(14f), dp(14f))
+            addView(TextView(this@MainActivity).apply {
+                text = "Glasses display"
+                textSize = 16f
+                setTextColor(Color.WHITE)
+                typeface = Typeface.DEFAULT_BOLD
+            })
+            addView(caption("How much of each notification the glasses show"))
+
+            val maxLines = RelayConfig.maxLines(this@MainActivity)
+            addView(caption("Max text lines per card: $maxLines"))
+            val lineRow = LinearLayout(this@MainActivity).apply { orientation = LinearLayout.HORIZONTAL }
+            lineRow.addView(Button(this@MainActivity).apply {
+                text = "−"; isAllCaps = false
+                setOnClickListener {
+                    val v = RelayConfig.maxLines(this@MainActivity) - 1
+                    RelayConfig.setMaxLines(this@MainActivity, v)
+                    BridgeService.instance?.pushConfig()
+                    selectTab("themes")
+                }
+            })
+            lineRow.addView(Button(this@MainActivity).apply {
+                text = "+"; isAllCaps = false
+                setOnClickListener {
+                    val v = RelayConfig.maxLines(this@MainActivity) + 1
+                    RelayConfig.setMaxLines(this@MainActivity, v)
+                    BridgeService.instance?.pushConfig()
+                    selectTab("themes")
+                }
+            })
+            addView(lineRow)
+
+            addView(caption("Auto-scroll long text after a moment (pages through it):"))
+            val autoOn = RelayConfig.autoScrollMs(this@MainActivity) > 0
+            addView(switch(this@MainActivity, autoOn) { checked ->
+                RelayConfig.setAutoScrollMs(this@MainActivity, if (checked) 4000L else 0L)
+                BridgeService.instance?.pushConfig()
+            })
+
+            addView(caption("Cards auto-hide after ~6s. Changes apply to new notifications."))
+        })
 
         RelayConfig.TYPES.forEach { type ->
             page.addView(card {
@@ -457,6 +496,28 @@ class MainActivity : Activity() {
         ).also { it.setMargins(0, dp(8f), 0, dp(8f)) }
         build()
     }
+    /** Switch with an unmistakable state scheme: ON = teal track + white thumb,
+     *  OFF = dim grey track + grey thumb (Samsung's default reads backwards on black). */
+    private fun switch(context: android.content.Context, on: Boolean, onChange: (Boolean) -> Unit): android.widget.Switch =
+        android.widget.Switch(context).apply {
+            isChecked = on
+            trackTintList = android.content.res.ColorStateList(
+                arrayOf(
+                    intArrayOf(-android.R.attr.state_checked),
+                    intArrayOf(android.R.attr.state_checked),
+                ),
+                intArrayOf(0xFF3A3F46.toInt(), 0xFF39D2C0.toInt()),
+            )
+            thumbTintList = android.content.res.ColorStateList(
+                arrayOf(
+                    intArrayOf(-android.R.attr.state_checked),
+                    intArrayOf(android.R.attr.state_checked),
+                ),
+                intArrayOf(0xFF9AA0A6.toInt(), Color.WHITE),
+            )
+            setOnCheckedChangeListener { _, checked -> onChange(checked) }
+        }
+
     private fun pill(bg: Int, radius: Float = 20f): GradientDrawable =
         GradientDrawable().apply { setColor(bg); cornerRadius = dp(radius).toFloat() }
 }

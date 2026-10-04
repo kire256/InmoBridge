@@ -26,6 +26,14 @@ object NotifOverlay {
     private var view: NotifOverlayView? = null
     private var windowAdded = false
 
+    // Display settings pushed from the phone (config envelope).
+    @Volatile var maxLines: Int = 3
+        private set
+    @Volatile var autoScrollMs: Long = 4000L
+        private set
+    @Volatile var timeoutMs: Long = 6000L
+        private set
+
     private var wakeLock: PowerManager.WakeLock? = null
     private var tone: ToneGenerator? = null
 
@@ -46,9 +54,16 @@ object NotifOverlay {
                 NotifSpec.fromJson(env.payload)?.let { present(it) }
             }
             BridgeMessage.TYPE_CONFIG -> {
-                // config.timeout could adjust display duration; MVP keeps spec timeout.
+                NotifOverlay.applyConfig(env)
             }
         }
+    }
+
+    /** Apply display settings from a config envelope. */
+    fun applyConfig(env: Envelope) {
+        maxLines = env.payload.optInt("maxLines", 3).coerceIn(1, 8)
+        autoScrollMs = env.payload.optLong("autoScrollMs", 4000L)
+        timeoutMs = env.payload.optLong("timeout", 6000L)
     }
 
     private fun present(spec: NotifSpec) {

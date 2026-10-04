@@ -7,6 +7,7 @@ import android.content.pm.PackageManager
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
 import com.droidforge.inmobridge.core.BridgeMessage
+import com.droidforge.inmobridge.core.NotifDeduper
 import com.droidforge.inmobridge.core.NotifSpec
 
 /**
@@ -32,14 +33,14 @@ class RelayService : NotificationListenerService() {
     }
 
     private val replayGuard = HashSet<String>()
-    private var lastMirrorHash = 0
-    private var lastMirrorAt = 0L
 
     override fun onListenerDisconnected() {
         super.onListenerDisconnected()
         connected = false
         INSTANCE = null
     }
+
+    private val deduper = NotifDeduper()
 
     override fun onNotificationPosted(sbn: StatusBarNotification?) {
         val n = sbn?.notification ?: return
@@ -62,12 +63,10 @@ class RelayService : NotificationListenerService() {
 
         val type = classify(pkg, extras, n.category)
 
-        // Suppress double-post bursts of identical content (3s window), so a
-        // single message never re-mirrors — but genuine repeats still get through.
-        val h = listOf(pkg, title, text).hashCode()
-        val now = System.currentTimeMillis()
-        if (h == lastMirrorHash && now - lastMirrorAt < 3000) return
-        lastMirrorHash = h; lastMirrorAt = now
+        // Content dedupe: Telegram-style reposts of identical alerts within the
+        // window are suppressed (keyed by the notification's stable key).
+        if (!deduper.shouldMirror(sbn.key, title, text, System.currentTimeMillis())) return
+        replayGuard.remove(sbn.key)
 
         val (theme, sound, vibrate) = RelayConfig.ruleFor(this, type)
         val spec = NotifSpec(

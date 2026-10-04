@@ -37,7 +37,7 @@ class BridgeService : Service() {
             PORT,
             onClientConnected = { s ->
                 // Push current display config on every (re)connect.
-                s.send(BridgeMessage.config(displayTimeoutMs(), relayEnabled(), s.nextId()))
+                s.send(BridgeMessage.config(displayTimeoutMs(), relayEnabled(), s.nextId(), RelayConfig.maxLines(this), RelayConfig.autoScrollMs(this)))
             },
             expectedToken = PairingManager.token(this),
             onEvent = { env -> onGlassesEvent(env) },
@@ -122,9 +122,7 @@ class BridgeService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.getStringExtra("cmd") == "push_config") {
-            server?.let {
-                it.send(BridgeMessage.config(displayTimeoutMs(), relayEnabled(), it.nextId()))
-            }
+            pushConfig()
         }
         return START_STICKY
     }
@@ -132,6 +130,13 @@ class BridgeService : Service() {
     private fun relayEnabled(): Boolean = RelayConfig.relayEnabled(this)
     private fun displayTimeoutMs(): Long =
         getSharedPreferences("display", MODE_PRIVATE).getLong("timeout", 6000L)
+
+    /** Push current display config to the glasses (settings changed). */
+    fun pushConfig() {
+        server?.let {
+            it.send(BridgeMessage.config(displayTimeoutMs(), relayEnabled(), it.nextId(), RelayConfig.maxLines(this), RelayConfig.autoScrollMs(this)))
+        }
+    }
 
     override fun onBind(intent: Intent?): IBinder? = null
 }

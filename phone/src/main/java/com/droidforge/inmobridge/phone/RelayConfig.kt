@@ -31,6 +31,24 @@ object RelayConfig {
     private const val KEY_TYPES = "types"
     private const val KEY_ENABLED = "enabled"
 
+    // ---- Glasses display settings (mirrored via config envelope) ----
+    fun maxLines(ctx: Context): Int =
+        ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getInt("maxLines", 3)
+
+    fun setMaxLines(ctx: Context, lines: Int) {
+        ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
+            .putInt("maxLines", lines.coerceIn(1, 8)).apply()
+    }
+
+    /** Auto-scroll long text after this many ms (0 = off). */
+    fun autoScrollMs(ctx: Context): Long =
+        ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getLong("autoScrollMs", 4000L)
+
+    fun setAutoScrollMs(ctx: Context, ms: Long) {
+        ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
+            .putLong("autoScrollMs", ms).apply()
+    }
+
     /** Default per-type presentation. */
     fun defaultTypeRules(): Map<String, Triple<String, String, String>> = mapOf(
         MSG to Triple("teal", "ping", "tick"),
