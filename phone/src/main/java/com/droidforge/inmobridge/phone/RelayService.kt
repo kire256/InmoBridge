@@ -22,7 +22,18 @@ class RelayService : NotificationListenerService() {
         super.onListenerConnected()
         INSTANCE = this
         connected = true
+        // Android replays every ACTIVE notification to a (re)connecting listener.
+        // Snapshot them so onNotificationPosted skips the replay burst; only
+        // notifications that arrive after connect get mirrored.
+        replayGuard.clear()
+        runCatching {
+            activeNotifications?.forEach { replayGuard.add(it.key) }
+        }
     }
+
+    private val replayGuard = HashSet<String>()
+    private var lastMirrorHash = 0
+    private var lastMirrorAt = 0L
 
     override fun onListenerDisconnected() {
         super.onListenerDisconnected()
@@ -36,6 +47,7 @@ class RelayService : NotificationListenerService() {
         if (pkg == packageName) return                      // never mirror ourselves
         if (!RelayConfig.relayEnabled(this)) return
         if (!RelayConfig.isAppAllowed(this, pkg)) return    // per-app allowlist
+        if (replayGuard.remove(sbn.key)) return             // active-at-connect replay, not new
         if (n.extras == null) return
 
         // Skip silent/progress notifications (downloads, media progress bars)
@@ -49,6 +61,14 @@ class RelayService : NotificationListenerService() {
             (extras.getInt(Notification.EXTRA_PROGRESS_MAX) > 0)) return
 
         val type = classify(pkg, extras, n.category)
+
+        // Suppress double-post bursts of identical content (3s window), so a
+        // single message never re-mirrors — but genuine repeats still get through.
+        val h = listOf(pkg, title, text).hashCode()
+        val now = System.currentTimeMillis()
+        if (h == lastMirrorHash && now - lastMirrorAt < 3000) return
+        lastMirrorHash = h; lastMirrorAt = now
+
         val (theme, sound, vibrate) = RelayConfig.ruleFor(this, type)
         val spec = NotifSpec(
             app = appLabel(pkg),

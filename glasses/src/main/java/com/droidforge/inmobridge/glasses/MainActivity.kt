@@ -23,6 +23,12 @@ class MainActivity : AppCompatActivity() {
             text = "InmoBridge Relay"
             textSize = 26f
         })
+        root.addView(TextView(this).apply {
+            text = "v${BuildConfig.VERSION_NAME}"
+            textSize = 13f
+            setTextColor(0xFF39D2C0.toInt())
+            setPadding(0, (d * 2).toInt(), 0, 0)
+        })
         val st = TextView(this).apply {
             textSize = 15f
             setPadding(0, (d * 10).toInt(), 0, (d * 10).toInt())
